@@ -1,0 +1,256 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  student
+  teacher
+  admin
+}
+
+enum QuestionType {
+  single_choice
+  multi_true_false
+  short_answer
+}
+
+enum Difficulty {
+  nhan_biet
+  thong_hieu
+  van_dung
+  van_dung_cao
+}
+
+enum ContentStatus {
+  draft
+  published
+  rejected
+}
+
+enum ExamType {
+  official
+  practice
+  custom
+}
+
+enum SubmissionStatus {
+  in_progress
+  submitted
+}
+
+model User {
+  id               String     @id @default(cuid())
+  email            String     @unique
+  password_hash    String
+  full_name        String
+  role             UserRole   @default(student)
+  school           String?
+  target_block     String?
+  avatar_url       String?
+  xp               Int        @default(0)
+  streak_count     Int        @default(0)
+  last_activity_at DateTime?
+  is_active        Boolean    @default(true)
+  created_at       DateTime   @default(now())
+
+  questions       Question[]
+  createdExams    Exam[]       @relation("ExamCreator")
+  submissions     Submission[]
+  userBadges      UserBadge[]
+  notifications   Notification[]
+  forumPosts      ForumPost[]
+  forumComments   ForumComment[]
+  forumVotes      ForumVote[]
+  notes           Note[]
+}
+
+model Subject {
+  id       String    @id @default(cuid())
+  name     String
+  code     String    @unique
+  chapters Chapter[]
+  exams    Exam[]
+  forumPosts ForumPost[]
+  notes    Note[]
+}
+
+model Chapter {
+  id         String   @id @default(cuid())
+  subject_id String
+  name       String
+  order_index Int     @default(0)
+  subject    Subject  @relation(fields: [subject_id], references: [id], onDelete: Cascade)
+  questions  Question[]
+}
+
+model Question {
+  id          String        @id @default(cuid())
+  chapter_id  String
+  content     String
+  type        QuestionType  @default(single_choice)
+  difficulty  Difficulty    @default(nhan_biet)
+  image_url   String?
+  explanation String?
+  created_by  String
+  status      ContentStatus @default(draft)
+  created_at  DateTime      @default(now())
+  updated_at  DateTime      @updatedAt
+
+  chapter         Chapter           @relation(fields: [chapter_id], references: [id], onDelete: Cascade)
+  creator         User              @relation(fields: [created_by], references: [id])
+  options         QuestionOption[]
+  examQuestions   ExamQuestion[]
+  submissionAnswers SubmissionAnswer[]
+}
+
+model QuestionOption {
+  id          String   @id @default(cuid())
+  question_id String
+  content     String
+  is_correct  Boolean  @default(false)
+  order_index Int      @default(0)
+  question    Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
+}
+
+model Exam {
+  id               String        @id @default(cuid())
+  title            String
+  subject_id       String
+  type             ExamType      @default(practice)
+  duration_minutes Int
+  total_score      Float         @default(10)
+  created_by       String
+  status           ContentStatus @default(published)
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
+
+  subject        Subject          @relation(fields: [subject_id], references: [id])
+  creator        User             @relation("ExamCreator", fields: [created_by], references: [id])
+  examQuestions  ExamQuestion[]
+  submissions    Submission[]
+}
+
+model ExamQuestion {
+  id           String   @id @default(cuid())
+  exam_id      String
+  question_id  String
+  order_index  Int      @default(0)
+  score_weight Float    @default(1)
+  exam         Exam     @relation(fields: [exam_id], references: [id], onDelete: Cascade)
+  question     Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
+}
+
+model Submission {
+  id           String           @id @default(cuid())
+  user_id      String
+  exam_id      String
+  started_at   DateTime         @default(now())
+  submitted_at DateTime?
+  total_score  Float?
+  xp_awarded   Int              @default(0)
+  correct_count Int             @default(0)
+  status       SubmissionStatus @default(in_progress)
+  user         User             @relation(fields: [user_id], references: [id])
+  exam         Exam             @relation(fields: [exam_id], references: [id])
+  answers      SubmissionAnswer[]
+}
+
+model SubmissionAnswer {
+  id            String     @id @default(cuid())
+  submission_id String
+  question_id   String
+  answer        String?
+  is_correct    Boolean?
+  score         Float?
+  flagged       Boolean    @default(false)
+  submission    Submission @relation(fields: [submission_id], references: [id], onDelete: Cascade)
+  question      Question   @relation(fields: [question_id], references: [id], onDelete: Cascade)
+}
+
+model Badge {
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  icon_url       String?
+  condition_type String
+  condition_value Int
+  userBadges     UserBadge[]
+}
+
+model UserBadge {
+  id       String @id @default(cuid())
+  user_id  String
+  badge_id String
+  earned_at DateTime @default(now())
+  user     User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  badge    Badge  @relation(fields: [badge_id], references: [id], onDelete: Cascade)
+}
+
+model ForumPost {
+  id           String   @id @default(cuid())
+  user_id      String
+  subject_id   String?
+  title        String
+  content      String
+  view_count   Int      @default(0)
+  vote_count   Int      @default(0)
+  comment_count Int     @default(0)
+  is_resolved  Boolean  @default(false)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  subject      Subject? @relation(fields: [subject_id], references: [id])
+  comments     ForumComment[]
+  votes        ForumVote[]
+  best_comment_id String?       @unique
+  best_comment ForumComment? @relation("BestComment", fields: [best_comment_id], references: [id], onDelete: SetNull)
+}
+
+model ForumComment {
+  id         String   @id @default(cuid())
+  post_id    String
+  user_id    String
+  content    String
+  is_best    Boolean  @default(false)
+  created_at DateTime @default(now())
+  post       ForumPost @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  bestOf     ForumPost? @relation("BestComment")
+}
+
+model ForumVote {
+  id      String   @id @default(cuid())
+  post_id String
+  user_id String
+  created_at DateTime @default(now())
+  post    ForumPost @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  @@unique([post_id, user_id])
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  user_id    String
+  type       String
+  content    String
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now())
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model Note {
+  id         String   @id @default(cuid())
+  user_id    String
+  subject_id String?
+  title      String
+  content    String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  subject    Subject? @relation(fields: [subject_id], references: [id])
+}

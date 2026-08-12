@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+﻿import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -10,7 +10,7 @@ interface AuthRes {
   user: { id: string; email: string; role: string };
 }
 
-describe('OnThi247 e2e', () => {
+describe('On thi 2029 e2e', () => {
   let app: INestApplication<App>;
 
   beforeAll(async () => {
@@ -28,7 +28,7 @@ describe('OnThi247 e2e', () => {
       }),
     );
     await app.init();
-    // Lưu ý: test chạy trên DB dev (dev.db) đã được seed sẵn qua `npm run db:seed`
+    // LÆ°u Ã½: test cháº¡y trÃªn DB dev (dev.db) Ä‘Ã£ Ä‘Æ°á»£c seed sáºµn qua `npm run db:seed`
   });
 
   afterAll(async () => {
@@ -38,9 +38,9 @@ describe('OnThi247 e2e', () => {
   describe('Auth', () => {
     let token = '';
     const email = `user_${Date.now()}@test.vn`;
-    const baseEmail = 'student@onthi247.vn';
+    const baseEmail = 'student@onthi2029.vn';
 
-    it('POST /api/auth/login với tài khoản seed', async () => {
+    it('POST /api/auth/login vá»›i tÃ i khoáº£n seed', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/auth/login')
         .send({ email: baseEmail, password: 'student123' })
@@ -50,7 +50,7 @@ describe('OnThi247 e2e', () => {
       token = res.body.access_token;
     });
 
-    it('POST /api/auth/register tạo user mới', async () => {
+    it('POST /api/auth/register táº¡o user má»›i', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/auth/register')
         .send({ email, password: 'test123456', full_name: 'Test User' })
@@ -58,21 +58,21 @@ describe('OnThi247 e2e', () => {
       expect(res.body.user.email).toBe(email);
     });
 
-    it('POST /api/auth/register trùng email → 409', async () => {
+    it('POST /api/auth/register trÃ¹ng email â†’ 409', async () => {
       await request(app.getHttpServer())
         .post('/api/auth/register')
         .send({ email, password: 'test123456', full_name: 'Dup' })
         .expect(409);
     });
 
-    it('POST /api/auth/login sai mật khẩu → 401', async () => {
+    it('POST /api/auth/login sai máº­t kháº©u â†’ 401', async () => {
       await request(app.getHttpServer())
         .post('/api/auth/login')
         .send({ email: baseEmail, password: 'wrong' })
         .expect(401);
     });
 
-    it('GET /api/users/me cần token', async () => {
+    it('GET /api/users/me cáº§n token', async () => {
       await request(app.getHttpServer()).get('/api/users/me').expect(401);
       const res = await request(app.getHttpServer())
         .get('/api/users/me')
@@ -98,9 +98,9 @@ describe('OnThi247 e2e', () => {
           .send({ email, password });
         return res.body as AuthRes;
       };
-      teacherToken = (await login('teacher@onthi247.vn', 'teacher123'))
+      teacherToken = (await login('teacher@onthi2029.vn', 'teacher123'))
         .access_token;
-      studentToken = (await login('student@onthi247.vn', 'student123'))
+      studentToken = (await login('student@onthi2029.vn', 'student123'))
         .access_token;
     });
 
@@ -124,7 +124,7 @@ describe('OnThi247 e2e', () => {
       chapterId = res.body[0].id;
     });
 
-    it('POST /api/questions (teacher) tạo câu hỏi', async () => {
+    it('POST /api/questions (teacher) táº¡o cÃ¢u há»i', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/questions')
         .set('Authorization', `Bearer ${teacherToken}`)
@@ -134,7 +134,7 @@ describe('OnThi247 e2e', () => {
           type: 'single_choice',
           difficulty: 'nhan_biet',
           status: 'published',
-          explanation: 'Kết quả là 2',
+          explanation: 'Káº¿t quáº£ lÃ  2',
           options: [
             { content: '1', is_correct: false },
             { content: '2', is_correct: true },
@@ -148,7 +148,7 @@ describe('OnThi247 e2e', () => {
       questionId = res.body.id;
     });
 
-    it('POST /api/questions (student) → 403', async () => {
+    it('POST /api/questions (student) â†’ 403', async () => {
       await request(app.getHttpServer())
         .post('/api/questions')
         .set('Authorization', `Bearer ${studentToken}`)
@@ -172,17 +172,17 @@ describe('OnThi247 e2e', () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/questions/${questionId}`)
         .set('Authorization', `Bearer ${teacherToken}`)
-        .send({ content: 'Test cập nhật: $2 + 2 = ?$' })
+        .send({ content: 'Test cáº­p nháº­t: $2 + 2 = ?$' })
         .expect(200);
-      expect(res.body.content).toContain('cập nhật');
+      expect(res.body.content).toContain('cáº­p nháº­t');
     });
 
-    it('POST /api/exams/generate theo ma trận', async () => {
+    it('POST /api/exams/generate theo ma tráº­n', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/exams/generate')
         .set('Authorization', `Bearer ${teacherToken}`)
         .send({
-          title: 'Đề thi thử e2e',
+          title: 'Äá» thi thá»­ e2e',
           subject_id: subjectId,
           duration_minutes: 50,
           matrix: { nhan_biet: 1, thong_hieu: 1, van_dung: 0, van_dung_cao: 0 },
@@ -192,7 +192,7 @@ describe('OnThi247 e2e', () => {
       examId = res.body.id;
     });
 
-    it('GET /api/exams/:id không lộ đáp án đúng', async () => {
+    it('GET /api/exams/:id khÃ´ng lá»™ Ä‘Ã¡p Ã¡n Ä‘Ãºng', async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/exams/${examId}`)
         .set('Authorization', `Bearer ${studentToken}`)
@@ -228,7 +228,7 @@ describe('OnThi247 e2e', () => {
         .expect(201);
     });
 
-    it('POST /api/submissions/:id/submit → chấm điểm', async () => {
+    it('POST /api/submissions/:id/submit â†’ cháº¥m Ä‘iá»ƒm', async () => {
       const examRes = await request(app.getHttpServer())
         .get(`/api/exams/${examId}`)
         .set('Authorization', `Bearer ${studentToken}`);
@@ -254,7 +254,7 @@ describe('OnThi247 e2e', () => {
       expect(res.body.questions.length).toBe(2);
     });
 
-    it('POST submit bài đã nộp → không thể sửa', async () => {
+    it('POST submit bÃ i Ä‘Ã£ ná»™p â†’ khÃ´ng thá»ƒ sá»­a', async () => {
       await request(app.getHttpServer())
         .post(`/api/submissions/${submissionId}/save`)
         .set('Authorization', `Bearer ${studentToken}`)
@@ -262,7 +262,7 @@ describe('OnThi247 e2e', () => {
         .expect(400);
     });
 
-    it('GET /api/submissions (mine) trả danh sách', async () => {
+    it('GET /api/submissions (mine) tráº£ danh sÃ¡ch', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/submissions')
         .set('Authorization', `Bearer ${studentToken}`)
@@ -282,7 +282,7 @@ describe('OnThi247 e2e', () => {
     beforeAll(async () => {
       const login = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'student@onthi247.vn', password: 'student123' });
+        .send({ email: 'student@onthi2029.vn', password: 'student123' });
       studentToken = (login.body as AuthRes).access_token;
 
       const subjects = await request(app.getHttpServer())
@@ -307,7 +307,7 @@ describe('OnThi247 e2e', () => {
       expect(res.body.total_submissions).toBeGreaterThan(0);
     });
 
-    it('GET /api/stats/me/progress 30 ngày', async () => {
+    it('GET /api/stats/me/progress 30 ngÃ y', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/stats/me/progress?days=30')
         .set('Authorization', `Bearer ${studentToken}`)
@@ -315,7 +315,7 @@ describe('OnThi247 e2e', () => {
       expect(res.body.length).toBe(30);
     });
 
-    it('GET /api/stats/me/badges trả earned + locked', async () => {
+    it('GET /api/stats/me/badges tráº£ earned + locked', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/stats/me/badges')
         .set('Authorization', `Bearer ${studentToken}`)
@@ -337,10 +337,10 @@ describe('OnThi247 e2e', () => {
       expect(res.body[0].full_name).toBeDefined();
     });
 
-    it('Submit bài → trả xp_earned và mở huy hiệu', async () => {
+    it('Submit bÃ i â†’ tráº£ xp_earned vÃ  má»Ÿ huy hiá»‡u', async () => {
       const teacherLogin = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'teacher@onthi247.vn', password: 'teacher123' });
+        .send({ email: 'teacher@onthi2029.vn', password: 'teacher123' });
       const teacherToken = (teacherLogin.body as AuthRes).access_token;
 
       const freshEmail = `fresh_${Date.now()}@test.vn`;
@@ -380,7 +380,7 @@ describe('OnThi247 e2e', () => {
         .post('/api/exams')
         .set('Authorization', `Bearer ${teacherToken}`)
         .send({
-          title: 'Đề thi gamification e2e',
+          title: 'Äá» thi gamification e2e',
           subject_id: subjectId,
           duration_minutes: 10,
           questions: [{ question_id: q.body.id }],
@@ -405,12 +405,12 @@ describe('OnThi247 e2e', () => {
       expect(Array.isArray(res.body.earned_badges)).toBe(true);
 
       const freshBadge = res.body.earned_badges.find(
-        (b: { name: string }) => b.name === 'Khởi đầu',
+        (b: { name: string }) => b.name === 'Khá»Ÿi Ä‘áº§u',
       );
       expect(freshBadge).toBeDefined();
     });
 
-    it('Submission nộp xong ghi xp_awarded', async () => {
+    it('Submission ná»™p xong ghi xp_awarded', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/submissions')
         .set('Authorization', `Bearer ${freshStudentToken}`)
@@ -435,10 +435,10 @@ describe('OnThi247 e2e', () => {
           .send({ email, password });
         return res.body as AuthRes;
       };
-      adminToken = (await login('admin@onthi247.vn', 'admin123')).access_token;
-      teacherToken = (await login('teacher@onthi247.vn', 'teacher123'))
+      adminToken = (await login('admin@onthi2029.vn', 'admin123')).access_token;
+      teacherToken = (await login('teacher@onthi2029.vn', 'teacher123'))
         .access_token;
-      studentToken = (await login('student@onthi247.vn', 'student123'))
+      studentToken = (await login('student@onthi2029.vn', 'student123'))
         .access_token;
 
       const subjects = await request(app.getHttpServer())
@@ -453,7 +453,7 @@ describe('OnThi247 e2e', () => {
       testChapterId = chapters.body[0].id;
     });
 
-    it('GET /api/admin/overview chỉ admin', async () => {
+    it('GET /api/admin/overview chá»‰ admin', async () => {
       await request(app.getHttpServer())
         .get('/api/admin/overview')
         .set('Authorization', `Bearer ${studentToken}`)
@@ -468,16 +468,16 @@ describe('OnThi247 e2e', () => {
 
     it('GET /api/admin/users', async () => {
       const res = await request(app.getHttpServer())
-        .get('/api/admin/users?search=student%40onthi247.vn&pageSize=5')
+        .get('/api/admin/users?search=student%40onthi2029.vn&pageSize=5')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
       targetUserId = res.body.items.find(
-        (u: { email: string }) => u.email === 'student@onthi247.vn',
+        (u: { email: string }) => u.email === 'student@onthi2029.vn',
       ).id;
       expect(targetUserId).toBeDefined();
     });
 
-    it('PATCH khóa user → user không login được', async () => {
+    it('PATCH khÃ³a user â†’ user khÃ´ng login Ä‘Æ°á»£c', async () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/admin/users/${targetUserId}`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -487,7 +487,7 @@ describe('OnThi247 e2e', () => {
 
       await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'student@onthi247.vn', password: 'student123' })
+        .send({ email: 'student@onthi2029.vn', password: 'student123' })
         .expect(401);
 
       await request(app.getHttpServer())
@@ -497,13 +497,13 @@ describe('OnThi247 e2e', () => {
         .expect(200);
     });
 
-    it('Admin duyệt câu hỏi draft → published', async () => {
+    it('Admin duyá»‡t cÃ¢u há»i draft â†’ published', async () => {
       const q = await request(app.getHttpServer())
         .post('/api/questions')
         .set('Authorization', `Bearer ${teacherToken}`)
         .send({
           chapter_id: testChapterId,
-          content: 'Câu hỏi chờ duyệt: $1 + 1 = ?$',
+          content: 'CÃ¢u há»i chá» duyá»‡t: $1 + 1 = ?$',
           type: 'single_choice',
           difficulty: 'nhan_biet',
           status: 'draft',
@@ -523,13 +523,13 @@ describe('OnThi247 e2e', () => {
       expect(res.body.status).toBe('published');
     });
 
-    it('PATCH từ chối câu hỏi draft → rejected', async () => {
+    it('PATCH tá»« chá»‘i cÃ¢u há»i draft â†’ rejected', async () => {
       const q = await request(app.getHttpServer())
         .post('/api/questions')
         .set('Authorization', `Bearer ${teacherToken}`)
         .send({
           chapter_id: testChapterId,
-          content: 'Câu hỏi bị từ chối: $2 + 2 = ?$',
+          content: 'CÃ¢u há»i bá»‹ tá»« chá»‘i: $2 + 2 = ?$',
           type: 'single_choice',
           difficulty: 'nhan_biet',
           status: 'draft',
@@ -540,13 +540,13 @@ describe('OnThi247 e2e', () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/admin/questions/${q.body.id}/moderate`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ status: 'rejected', reason: 'Trùng lặp câu hỏi' })
+        .send({ status: 'rejected', reason: 'TrÃ¹ng láº·p cÃ¢u há»i' })
         .expect(200);
       expect(res.body.status).toBe('rejected');
     });
   });
 
-  describe('Câu hỏi Đúng/Sai 2025', () => {
+  describe('CÃ¢u há»i ÄÃºng/Sai 2025', () => {
     let teacherToken = '';
     let studentToken = '';
     let subjectId = '';
@@ -562,9 +562,9 @@ describe('OnThi247 e2e', () => {
           .send({ email, password });
         return res.body as AuthRes;
       };
-      teacherToken = (await login('teacher@onthi247.vn', 'teacher123'))
+      teacherToken = (await login('teacher@onthi2029.vn', 'teacher123'))
         .access_token;
-      studentToken = (await login('student@onthi247.vn', 'student123'))
+      studentToken = (await login('student@onthi2029.vn', 'student123'))
         .access_token;
 
       const subjects = await request(app.getHttpServer())
@@ -581,22 +581,22 @@ describe('OnThi247 e2e', () => {
       ).id;
     });
 
-    it('Tạo câu Đ/S 4 ý', async () => {
+    it('Táº¡o cÃ¢u Ä/S 4 Ã½', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/questions')
         .set('Authorization', `Bearer ${teacherToken}`)
         .send({
           chapter_id: chapterId,
-          content: 'E2E Đúng/Sai: $2+2=4$. Chọn đúng/sai từng ý.',
+          content: 'E2E ÄÃºng/Sai: $2+2=4$. Chá»n Ä‘Ãºng/sai tá»«ng Ã½.',
           type: 'multi_true_false',
           difficulty: 'van_dung',
           status: 'published',
-          explanation: '2+2=4 đúng',
+          explanation: '2+2=4 Ä‘Ãºng',
           options: [
-            { content: 'Phát biểu a', is_correct: true },
-            { content: 'Phát biểu b', is_correct: true },
-            { content: 'Phát biểu c', is_correct: false },
-            { content: 'Phát biểu d', is_correct: false },
+            { content: 'PhÃ¡t biá»ƒu a', is_correct: true },
+            { content: 'PhÃ¡t biá»ƒu b', is_correct: true },
+            { content: 'PhÃ¡t biá»ƒu c', is_correct: false },
+            { content: 'PhÃ¡t biá»ƒu d', is_correct: false },
           ],
         })
         .expect(201);
@@ -610,7 +610,7 @@ describe('OnThi247 e2e', () => {
         .post('/api/exams')
         .set('Authorization', `Bearer ${teacherToken}`)
         .send({
-          title: 'Đề Đ/S e2e',
+          title: 'Äá» Ä/S e2e',
           subject_id: subjectId,
           duration_minutes: 5,
           questions: [{ question_id: questionId }],
@@ -624,7 +624,7 @@ describe('OnThi247 e2e', () => {
       submissionId = started.body.id;
     };
 
-    it('Đáp án đúng 4/4 → 1.0 điểm câu + điểm tổng 10', async () => {
+    it('ÄÃ¡p Ã¡n Ä‘Ãºng 4/4 â†’ 1.0 Ä‘iá»ƒm cÃ¢u + Ä‘iá»ƒm tá»•ng 10', async () => {
       await makeExam();
       const res = await request(app.getHttpServer())
         .post(`/api/submissions/${submissionId}/submit`)
@@ -643,7 +643,7 @@ describe('OnThi247 e2e', () => {
       expect(review.body.questions[0].earned_score).toBe(1);
     });
 
-    it('Đúng 3/4 → 0.5 điểm câu', async () => {
+    it('ÄÃºng 3/4 â†’ 0.5 Ä‘iá»ƒm cÃ¢u', async () => {
       await makeExam();
       await request(app.getHttpServer())
         .post(`/api/submissions/${submissionId}/submit`)
@@ -660,7 +660,7 @@ describe('OnThi247 e2e', () => {
       expect(review.body.questions[0].is_correct).toBe(false);
     });
 
-    it('Đúng 2/4 → 0.25, đúng 1/4 → 0', async () => {
+    it('ÄÃºng 2/4 â†’ 0.25, Ä‘Ãºng 1/4 â†’ 0', async () => {
       await makeExam();
       await request(app.getHttpServer())
         .post(`/api/submissions/${submissionId}/submit`)
@@ -691,7 +691,7 @@ describe('OnThi247 e2e', () => {
     });
   });
 
-  describe('Forum hỏi đáp', () => {
+  describe('Forum há»i Ä‘Ã¡p', () => {
     let studentToken = '';
     let teacherToken = '';
     let subjectId = '';
@@ -706,9 +706,9 @@ describe('OnThi247 e2e', () => {
           .send({ email, password });
         return res.body as AuthRes;
       };
-      studentToken = (await login('student@onthi247.vn', 'student123'))
+      studentToken = (await login('student@onthi2029.vn', 'student123'))
         .access_token;
-      teacherToken = (await login('teacher@onthi247.vn', 'teacher123'))
+      teacherToken = (await login('teacher@onthi2029.vn', 'teacher123'))
         .access_token;
 
       const subjects = await request(app.getHttpServer())
@@ -719,13 +719,13 @@ describe('OnThi247 e2e', () => {
       ).id;
     });
 
-    it('Tạo bài viết', async () => {
+    it('Táº¡o bÃ i viáº¿t', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/forum/posts')
         .set('Authorization', `Bearer ${studentToken}`)
         .send({
-          title: 'Cách giải bất phương trình logarit?',
-          content: 'Em chưa hiểu bước đổi cơ số, ai giúp em với ạ.',
+          title: 'CÃ¡ch giáº£i báº¥t phÆ°Æ¡ng trÃ¬nh logarit?',
+          content: 'Em chÆ°a hiá»ƒu bÆ°á»›c Ä‘á»•i cÆ¡ sá»‘, ai giÃºp em vá»›i áº¡.',
           subject_id: subjectId,
         })
         .expect(201);
@@ -734,7 +734,7 @@ describe('OnThi247 e2e', () => {
       postId = res.body.id;
     });
 
-    it('Liệt kê bài viết', async () => {
+    it('Liá»‡t kÃª bÃ i viáº¿t', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/forum/posts')
         .set('Authorization', `Bearer ${studentToken}`)
@@ -743,7 +743,7 @@ describe('OnThi247 e2e', () => {
       expect(res.body.items[0]).toHaveProperty('voted');
     });
 
-    it('Tăng view khi xem chi tiết', async () => {
+    it('TÄƒng view khi xem chi tiáº¿t', async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/forum/posts/${postId}`)
         .set('Authorization', `Bearer ${studentToken}`)
@@ -752,7 +752,7 @@ describe('OnThi247 e2e', () => {
       expect(res.body.comments).toHaveLength(0);
     });
 
-    it('Upvote / bỏ upvote', async () => {
+    it('Upvote / bá» upvote', async () => {
       const v1 = await request(app.getHttpServer())
         .post(`/api/forum/posts/${postId}/vote`)
         .set('Authorization', `Bearer ${studentToken}`)
@@ -773,13 +773,13 @@ describe('OnThi247 e2e', () => {
       expect(v2.body.voted).toBe(false);
     });
 
-    it('Trả lời + thông báo tác giả', async () => {
+    it('Tráº£ lá»i + thÃ´ng bÃ¡o tÃ¡c giáº£', async () => {
       const res = await request(app.getHttpServer())
         .post(`/api/forum/posts/${postId}/comments`)
         .set('Authorization', `Bearer ${teacherToken}`)
-        .send({ content: 'Đổi cơ số log về 10 rồi giải bình thường em nhé.' })
+        .send({ content: 'Äá»•i cÆ¡ sá»‘ log vá» 10 rá»“i giáº£i bÃ¬nh thÆ°á»ng em nhÃ©.' })
         .expect(201);
-      expect(res.body.content).toContain('Đổi cơ số');
+      expect(res.body.content).toContain('Äá»•i cÆ¡ sá»‘');
       commentId = res.body.id;
 
       const detail = await request(app.getHttpServer())
@@ -795,7 +795,7 @@ describe('OnThi247 e2e', () => {
       expect(notis.body.unread).toBeGreaterThanOrEqual(1);
     });
 
-    it('Chấm câu trả lời hay nhất (chỉ tác giả)', async () => {
+    it('Cháº¥m cÃ¢u tráº£ lá»i hay nháº¥t (chá»‰ tÃ¡c giáº£)', async () => {
       await request(app.getHttpServer())
         .patch(`/api/forum/posts/${postId}/best/${commentId}`)
         .set('Authorization', `Bearer ${teacherToken}`)
@@ -815,13 +815,13 @@ describe('OnThi247 e2e', () => {
       expect(detail.body.best_comment_id).toBe(commentId);
     });
 
-    it('Xóa bình luận: người ngoài bị cấm, tác giả được phép', async () => {
+    it('XÃ³a bÃ¬nh luáº­n: ngÆ°á»i ngoÃ i bá»‹ cáº¥m, tÃ¡c giáº£ Ä‘Æ°á»£c phÃ©p', async () => {
       const reg = await request(app.getHttpServer())
         .post('/api/auth/register')
         .send({
-          email: `forumguest${Date.now()}@onthi247.vn`,
+          email: `forumguest${Date.now()}@onthi2029.vn`,
           password: 'guest123',
-          full_name: 'Khách Forum',
+          full_name: 'KhÃ¡ch Forum',
         })
         .expect(201);
       const guestToken = (reg.body as AuthRes).access_token;
@@ -837,7 +837,7 @@ describe('OnThi247 e2e', () => {
         .expect(200);
     });
 
-    it('Mark đã đọc thông báo', async () => {
+    it('Mark Ä‘Ã£ Ä‘á»c thÃ´ng bÃ¡o', async () => {
       const notis = await request(app.getHttpServer())
         .get('/api/users/me/notifications')
         .set('Authorization', `Bearer ${teacherToken}`)
@@ -854,11 +854,11 @@ describe('OnThi247 e2e', () => {
       expect(after.body.unread).toBeLessThan(notis.body.unread);
     });
 
-    it('Xóa bài viết của người khác bị cấm, tác giả được phép', async () => {
+    it('XÃ³a bÃ i viáº¿t cá»§a ngÆ°á»i khÃ¡c bá»‹ cáº¥m, tÃ¡c giáº£ Ä‘Æ°á»£c phÃ©p', async () => {
       const created = await request(app.getHttpServer())
         .post('/api/forum/posts')
         .set('Authorization', `Bearer ${teacherToken}`)
-        .send({ title: 'Bài viết để xóa', content: 'test' });
+        .send({ title: 'BÃ i viáº¿t Ä‘á»ƒ xÃ³a', content: 'test' });
       teacherPostId = created.body.id;
 
       await request(app.getHttpServer())
@@ -878,7 +878,7 @@ describe('OnThi247 e2e', () => {
     });
   });
 
-  describe('Học tập: sổ tay, đánh dấu câu, hồ sơ công khai', () => {
+  describe('Há»c táº­p: sá»• tay, Ä‘Ã¡nh dáº¥u cÃ¢u, há»“ sÆ¡ cÃ´ng khai', () => {
     let studentToken = '';
     let teacherToken = '';
     let studentId = '';
@@ -891,9 +891,9 @@ describe('OnThi247 e2e', () => {
           .send({ email, password });
         return res.body as AuthRes;
       };
-      studentToken = (await login('student@onthi247.vn', 'student123'))
+      studentToken = (await login('student@onthi2029.vn', 'student123'))
         .access_token;
-      teacherToken = (await login('teacher@onthi247.vn', 'teacher123'))
+      teacherToken = (await login('teacher@onthi2029.vn', 'teacher123'))
         .access_token;
 
       const me = await request(app.getHttpServer())
@@ -903,13 +903,13 @@ describe('OnThi247 e2e', () => {
       studentId = me.body.id;
     });
 
-    it('Sổ tay: tạo/liệt kê/sửa/xóa ghi chú', async () => {
+    it('Sá»• tay: táº¡o/liá»‡t kÃª/sá»­a/xÃ³a ghi chÃº', async () => {
       const created = await request(app.getHttpServer())
         .post('/api/notes')
         .set('Authorization', `Bearer ${studentToken}`)
-        .send({ title: 'Công thức log', content: '$\\log_a b = \\frac{\\ln b}{\\ln a}$' })
+        .send({ title: 'CÃ´ng thá»©c log', content: '$\\log_a b = \\frac{\\ln b}{\\ln a}$' })
         .expect(201);
-      expect(created.body.title).toBe('Công thức log');
+      expect(created.body.title).toBe('CÃ´ng thá»©c log');
       noteId = created.body.id;
 
       const list = await request(app.getHttpServer())
@@ -921,7 +921,7 @@ describe('OnThi247 e2e', () => {
       await request(app.getHttpServer())
         .patch(`/api/notes/${noteId}`)
         .set('Authorization', `Bearer ${studentToken}`)
-        .send({ title: 'Công thức log nâng cao', content: 'nội dung mới' })
+        .send({ title: 'CÃ´ng thá»©c log nÃ¢ng cao', content: 'ná»™i dung má»›i' })
         .expect(200);
 
       await request(app.getHttpServer())
@@ -936,7 +936,7 @@ describe('OnThi247 e2e', () => {
         .expect(200);
     });
 
-    it('Đánh dấu câu nghi vấn khi làm bài rồi nộp', async () => {
+    it('ÄÃ¡nh dáº¥u cÃ¢u nghi váº¥n khi lÃ m bÃ i rá»“i ná»™p', async () => {
       const subjects = await request(app.getHttpServer())
         .get('/api/subjects')
         .set('Authorization', `Bearer ${studentToken}`);
@@ -955,7 +955,7 @@ describe('OnThi247 e2e', () => {
         .post('/api/exams')
         .set('Authorization', `Bearer ${teacherToken}`)
         .send({
-          title: 'Đề test đánh dấu',
+          title: 'Äá» test Ä‘Ã¡nh dáº¥u',
           subject_id: subjectId,
           duration_minutes: 5,
           questions: [
@@ -983,7 +983,7 @@ describe('OnThi247 e2e', () => {
       expect(detail.body.flagged).toEqual([q1.id]);
     });
 
-    it('Hồ sơ công khai của học viên', async () => {
+    it('Há»“ sÆ¡ cÃ´ng khai cá»§a há»c viÃªn', async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/users/${studentId}/profile`)
         .set('Authorization', `Bearer ${teacherToken}`)

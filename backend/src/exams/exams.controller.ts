@@ -1,6 +1,10 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { ExamsService } from './exams.service';
-import { CreateExamDto, GenerateMatrixDto } from './dto/exam.dto';
+import {
+  CreateExamDto,
+  GenerateMatrixDto,
+  GenerateOfficialDto,
+} from './dto/exam.dto';
 import { CurrentUser } from '../users/decorators';
 import { Roles } from '../auth/decorators';
 
@@ -28,5 +32,14 @@ export class ExamsController {
   @Post('generate')
   generate(@Body() dto: GenerateMatrixDto, @CurrentUser('sub') userId: string) {
     return this.examsService.generate(dto, userId);
+  }
+
+  @Roles('teacher', 'admin')
+  @Post('generate-official')
+  generateOfficial(
+    @Body() dto: GenerateOfficialDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.examsService.generateOfficial(dto, userId);
   }
 }

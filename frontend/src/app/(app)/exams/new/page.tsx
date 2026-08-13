@@ -22,9 +22,16 @@ const PRESET_MATRICES = [
   { name: "Chuyên đề (10 câu)", matrix: { nhan_biet: 4, thong_hieu: 4, van_dung: 2, van_dung_cao: 0 } },
 ];
 
+const OFFICIAL_STRUCTURE = [
+  { name: "Toán", code: "toan", detail: "22 câu · 90' · 12 TN + 4 Đ/S + 6 TLN" },
+  { name: "Vật Lý", code: "vatly", detail: "28 câu · 50' · 18 TN + 4 Đ/S + 6 TLN" },
+  { name: "Hóa Học", code: "hoa", detail: "28 câu · 50' · 18 TN + 4 Đ/S + 6 TLN" },
+  { name: "Tiếng Anh", code: "anh", detail: "40 câu · 50' · 40 TN" },
+];
+
 export default function NewExamPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"matrix" | "manual">("matrix");
+  const [mode, setMode] = useState<"matrix" | "manual" | "official">("matrix");
   const [title, setTitle] = useState("");
   const [subjectId, setSubjectId] = useState("");
   const [chapterId, setChapterId] = useState("");
@@ -90,6 +97,11 @@ export default function NewExamPage() {
             duration_minutes: duration,
             matrix,
           },
+        });
+      } else if (mode === "official") {
+        await api("/exams/generate-official", {
+          method: "POST",
+          body: { title, subject_id: subjectId },
         });
       } else {
         const questions = Object.values(picked);
@@ -198,7 +210,24 @@ export default function NewExamPage() {
       </Card>
 
       {/* Mode selector */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
+        <button
+          onClick={() => {
+            setMode("official");
+            setSubjectId("");
+            setChapterId("");
+          }}
+          className={`rounded-xl border-2 p-4 text-left transition-colors ${
+            mode === "official"
+              ? "border-indigo-600 bg-indigo-50"
+              : "border-gray-200 bg-white hover:border-gray-300"
+          }`}
+        >
+          <p className="font-semibold text-gray-900">🎯 Đề chuẩn 2029</p>
+          <p className="mt-1 text-xs text-gray-500">
+            Một click theo đúng cấu trúc Bộ GD-ĐT (Quyết định 764).
+          </p>
+        </button>
         <button
           onClick={() => setMode("matrix")}
           className={`rounded-xl border-2 p-4 text-left transition-colors ${
@@ -227,7 +256,38 @@ export default function NewExamPage() {
         </button>
       </div>
 
-      {mode === "matrix" ? (
+      {mode === "official" ? (
+        <Card className="p-5">
+          <p className="mb-3 text-sm text-gray-600">
+            Hệ thống chọn ngẫu nhiên câu hỏi đã duyệt và áp dụng đúng cấu trúc,
+            thời gian và thang điểm của Kỳ thi tốt nghiệp THPT 2029:
+          </p>
+          <div className="space-y-2">
+            {OFFICIAL_STRUCTURE.map((s) => {
+              const match = subjects.find((sub) => sub.code === s.code);
+              return (
+                <button
+                  key={s.code}
+                  onClick={() => setSubjectId(match?.id ?? "")}
+                  className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
+                    subjectId === match?.id
+                      ? "border-indigo-500 bg-indigo-50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                  disabled={!match}
+                >
+                  <span className="font-medium text-gray-900">{s.name}</span>
+                  <span className="text-xs text-gray-500">{s.detail}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-xs text-gray-400">
+            Thời gian và trọng số điểm tự động theo chuẩn: TN 0.25đ · Đ/S 1.0đ ·
+            trả lời ngắn Toán 0.5đ / môn khác 0.25đ.
+          </p>
+        </Card>
+      ) : mode === "matrix" ? (
         <Card className="p-5">
           <div className="mb-3 flex flex-wrap gap-2">
             {PRESET_MATRICES.map((preset) => (

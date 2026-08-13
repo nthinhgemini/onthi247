@@ -30,6 +30,79 @@ const DIFFICULTIES = [
   'van_dung_cao',
 ] as const;
 
+/**
+ * Cấu trúc đề thi THPT Quốc gia từ 2025 trở đi (Quyết định 764/QĐ-BGDĐT).
+ * Mỗi "part" là một phần của đề: I (trắc nghiệm 4 chọn 1), II (Đúng/Sai 4 ý),
+ * III (trả lời ngắn). Số câu, trọng số điểm và thời gian theo chuẩn Bộ GD-ĐT.
+ */
+const OFFICIAL_2029: Record<
+  string,
+  { duration_minutes: number; parts: { type: string; count: number; weight: number }[] }
+> = {
+  // Toán: 90 phút, 22 câu: Phần I 12 câu x0.25 + Phần II 4 câu x1.0 + Phần III 6 câu x0.5 = 10đ
+  toan: {
+    duration_minutes: 90,
+    parts: [
+      { type: 'single_choice', count: 12, weight: 0.25 },
+      { type: 'multi_true_false', count: 4, weight: 1 },
+      { type: 'short_answer', count: 6, weight: 0.5 },
+    ],
+  },
+  // Vật lý/Hóa/Sinh/Địa: 50 phút, 28 câu: 18 x0.25 + 4 x1.0 + 6 x0.25 = 10đ
+  vatly: {
+    duration_minutes: 50,
+    parts: [
+      { type: 'single_choice', count: 18, weight: 0.25 },
+      { type: 'multi_true_false', count: 4, weight: 1 },
+      { type: 'short_answer', count: 6, weight: 0.25 },
+    ],
+  },
+  hoa: {
+    duration_minutes: 50,
+    parts: [
+      { type: 'single_choice', count: 18, weight: 0.25 },
+      { type: 'multi_true_false', count: 4, weight: 1 },
+      { type: 'short_answer', count: 6, weight: 0.25 },
+    ],
+  },
+  sinh: {
+    duration_minutes: 50,
+    parts: [
+      { type: 'single_choice', count: 18, weight: 0.25 },
+      { type: 'multi_true_false', count: 4, weight: 1 },
+      { type: 'short_answer', count: 6, weight: 0.25 },
+    ],
+  },
+  dia: {
+    duration_minutes: 50,
+    parts: [
+      { type: 'single_choice', count: 18, weight: 0.25 },
+      { type: 'multi_true_false', count: 4, weight: 1 },
+      { type: 'short_answer', count: 6, weight: 0.25 },
+    ],
+  },
+  // Lịch sử / GDKT-PL / Công nghệ: 50 phút, 28 câu: 24 x0.25 + 4 x1.0 = 10đ
+  su: {
+    duration_minutes: 50,
+    parts: [
+      { type: 'single_choice', count: 24, weight: 0.25 },
+      { type: 'multi_true_false', count: 4, weight: 1 },
+    ],
+  },
+  gdktpl: {
+    duration_minutes: 50,
+    parts: [
+      { type: 'single_choice', count: 24, weight: 0.25 },
+      { type: 'multi_true_false', count: 4, weight: 1 },
+    ],
+  },
+  // Ngoại ngữ: 50 phút, 40 câu, mỗi câu 0.25đ
+  anh: {
+    duration_minutes: 50,
+    parts: [{ type: 'single_choice', count: 40, weight: 0.25 }],
+  },
+};
+
 @Injectable()
 export class ExamsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -131,6 +204,71 @@ export class ExamsService {
             question_id: q.id,
             order_index: i,
             score_weight: 1,
+          })),
+        },
+      },
+      include: examInclude,
+    });
+  }
+
+  /**
+   * Sinh đề thi theo đúng cấu trúc Kỳ thi tốt nghiệp THPT từ 2025/2029.
+   * Mỗi phần lấy ngẫu nhiên câu hỏi đã duyệt đúng loại, trọng số điểm theo Bộ GD-ĐT.
+   */
+  async generateOfficial(
+    dto: { title: string; subject_id: string },
+    createdBy: string,
+  ) {
+    const subject = await this.prisma.subject.findUnique({
+      where: { id: dto.subject_id },
+    });
+    if (!subject) {
+      throw new NotFoundException('Môn học không tồn tại');
+    }
+    const spec = OFFICIAL_2029[subject.code];
+    if (!spec) {
+      throw new BadRequestException(
+        `Môn "${subject.name}" chưa có cấu trúc đề chuẩn 2029`,
+      );
+    }
+
+    const where: Prisma.QuestionWhereInput = {
+      status: ContentStatus.published,
+      chapter: { subject: { id: dto.subject_id } },
+    };
+
+    const selected: { id: string; weight: number }[] = [];
+    for (const part of spec.parts) {
+      const candidates = await this.prisma.question.findMany({
+        where: { ...where, type: part.type as never },
+        select: { id: true },
+      });
+      if (candidates.length < part.count) {
+        throw new BadRequestException(
+          `Không đủ câu hỏi loại "${part.type}" (cần ${part.count}, chỉ có ${candidates.length})`,
+        );
+      }
+      selected.push(
+        ...this.shuffle(candidates)
+          .slice(0, part.count)
+          .map((q) => ({ id: q.id, weight: part.weight })),
+      );
+    }
+
+    return this.prisma.exam.create({
+      data: {
+        title: dto.title,
+        subject_id: dto.subject_id,
+        type: 'official',
+        duration_minutes: spec.duration_minutes,
+        total_score: 10,
+        created_by: createdBy,
+        status: ContentStatus.published,
+        examQuestions: {
+          create: selected.map((q, i) => ({
+            question_id: q.id,
+            order_index: i,
+            score_weight: q.weight,
           })),
         },
       },

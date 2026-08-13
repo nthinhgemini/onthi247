@@ -85,3 +85,12 @@ export class GenerateMatrixDto {
     van_dung_cao?: number;
   };
 }
+
+export class GenerateOfficialDto {
+  @IsString()
+  @MinLength(3)
+  title: string;
+
+  @IsString()
+  subject_id: string;
+}

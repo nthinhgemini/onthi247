@@ -33,6 +33,12 @@ export default function ExamDetailPage() {
   const exam = examQuery.data!;
   const questions = exam.examQuestions ?? [];
 
+  const partLabel = (type: string, scoreWeight: number): string => {
+    if (type === "single_choice") return `Phần I · ${scoreWeight} điểm`;
+    if (type === "multi_true_false") return `Phần II · 1.0 điểm`;
+    return `Phần III · ${scoreWeight} điểm`;
+  };
+
   const startExam = async () => {
     setStarting(true);
     setError("");
@@ -111,6 +117,9 @@ export default function ExamDetailPage() {
                   Câu {idx + 1}
                 </span>
                 <DifficultyBadge difficulty={eq.question.difficulty} />
+                <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                  {partLabel(eq.question.type, eq.score_weight)}
+                </span>
               </div>
               <p className="text-sm text-gray-800">
                 <Latex text={eq.question.content} />

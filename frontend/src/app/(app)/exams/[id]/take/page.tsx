@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { Exam, Submission, SubmitResult } from "@/lib/types";
-import { Button, Card, Loading } from "@/components/ui";
+import { Button, Card, CountdownRing, Loading } from "@/components/ui";
 import Latex from "@/components/Latex";
 
 type AnswerState = Record<string, string>;
@@ -21,28 +21,35 @@ function AnswerInput({
 }) {
   if (question.type === "single_choice") {
     return (
-      <div className="mt-3 space-y-2">
-        {question.options.map((opt) => (
-          <label
-            key={opt.id}
-            className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${
-              value === opt.id
-                ? "border-indigo-500 bg-indigo-50"
-                : "border-gray-200 bg-white hover:border-gray-300"
-            }`}
-          >
-            <input
-              type="radio"
-              name={question.id}
-              checked={value === opt.id}
-              onChange={() => onChange(opt.id)}
-              className="mt-1 h-4 w-4 accent-indigo-600"
-            />
-            <span className="text-sm text-gray-800">
-              <Latex text={opt.content} />
-            </span>
-          </label>
-        ))}
+      <div className="mt-4 space-y-2.5">
+        {question.options.map((opt) => {
+          const selected = value === opt.id;
+          return (
+            <label
+              key={opt.id}
+              className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3.5 transition-all ${
+                selected
+                  ? "border-indigo-500 bg-indigo-50/70 shadow-sm"
+                  : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              <input
+                type="radio"
+                name={question.id}
+                checked={selected}
+                onChange={() => onChange(opt.id)}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-indigo-600"
+              />
+              <span
+                className={`text-[15px] leading-relaxed sm:text-base ${
+                  selected ? "font-medium text-gray-900" : "text-gray-800"
+                }`}
+              >
+                <Latex text={opt.content} />
+              </span>
+            </label>
+          );
+        })}
       </div>
     );
   }
@@ -54,7 +61,7 @@ function AnswerInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Nhập đáp án..."
-        className="mt-3 w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+        className="mt-4 w-full max-w-md rounded-xl border border-gray-300 px-4 py-3 text-base outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
       />
     );
   }
@@ -68,14 +75,14 @@ function AnswerInput({
     };
     const labels = ["a", "b", "c", "d"];
     return (
-      <div className="mt-3 space-y-3">
+      <div className="mt-4 space-y-3">
         {question.options.map((opt, idx) => (
           <div
             key={opt.id}
-            className="rounded-xl border border-gray-200 bg-white p-3"
+            className="rounded-xl border border-gray-200 bg-white p-3.5"
           >
             <div className="flex items-start justify-between gap-3">
-              <p className="text-sm text-gray-800">
+              <p className="text-[15px] text-gray-800 sm:text-base">
                 <span className="mr-1 font-bold text-indigo-600">
                   {labels[idx]}).
                 </span>
@@ -126,6 +133,7 @@ export default function TakeExamPage() {
   const [answers, setAnswers] = useState<AnswerState>({});
   const [flagged, setFlagged] = useState<string[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
+  const [navOpen, setNavOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -257,6 +265,12 @@ export default function TakeExamPage() {
     flaggedRef.current = flagged;
   }, [flagged]);
 
+  const goToQuestion = (idx: number) => {
+    setCurrentIdx(idx);
+    setNavOpen(false);
+    window.scrollTo({ top: 0 });
+  };
+
   if (examQuery.isLoading || submissionQuery.isLoading) return <Loading />;
   if (!examQuery.data || !submissionQuery.data) {
     return (
@@ -277,43 +291,58 @@ export default function TakeExamPage() {
 
   const question = questions[currentIdx];
   const answeredCount = Object.values(answers).filter((v) => v).length;
-  const mm = Math.floor(remainingSec / 60);
-  const ss = remainingSec % 60;
+  const totalSeconds = (examQuery.data.duration_minutes ?? 0) * 60;
+  const answeredPct = questions.length > 0 ? (answeredCount / questions.length) * 100 : 0;
 
   return (
     <div className="mx-auto max-w-4xl">
       {/* Header: timer + progress */}
-      <div className="sticky top-[65px] z-10 mb-6 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-sm backdrop-blur">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-sm font-bold text-gray-900">
+      <div className="sticky top-[65px] z-10 mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white/95 shadow-card backdrop-blur">
+        <div className="flex items-center justify-between gap-3 p-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              Đang làm bài
+            </p>
+            <h1 className="truncate text-sm font-bold text-gray-900">
               {examQuery.data.title}
             </h1>
-            <p className="text-xs text-gray-500">
-              Đã làm {answeredCount}/{questions.length} câu
+            <p className="mt-0.5 whitespace-nowrap text-xs text-gray-500">
+              Đã làm{" "}
+              <span className="font-semibold text-gray-800">
+                {answeredCount}/{questions.length}
+              </span>{" "}
+              câu
+              {remainingSec < 300 && remainingSec > 0 && (
+                <span className="ml-1 font-semibold text-red-600">
+                  · Sắp hết giờ
+                </span>
+              )}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div
-              className={`rounded-xl px-4 py-2 font-mono text-lg font-bold tabular-nums ${
-                remainingSec < 300
-                  ? "bg-red-100 text-red-700"
-                  : "bg-gray-100 text-gray-900"
-              }`}
-            >
-              {String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}
-            </div>
+          <div className="flex shrink-0 items-center gap-2.5 sm:gap-3">
+            <CountdownRing
+              remainingSeconds={remainingSec}
+              totalSeconds={totalSeconds}
+            />
             <Button
               onClick={submitNow}
               loading={submitting}
-              variant={answeredCount === questions.length ? "success" : "danger"}
+              variant={answeredCount === questions.length ? "success" : "primary"}
             >
               Nộp bài
             </Button>
           </div>
         </div>
+        <div className="h-1 w-full bg-gray-100">
+          <div
+            className={`h-full transition-all duration-500 ${
+              answeredCount === questions.length ? "bg-emerald-500" : "bg-indigo-500"
+            }`}
+            style={{ width: `${answeredPct}%` }}
+          />
+        </div>
         {error && (
-          <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">
             {error}
           </p>
         )}
@@ -321,12 +350,20 @@ export default function TakeExamPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_240px]">
         {/* Câu hỏi */}
-        <Card className="p-6">
-          <div className="mb-2 flex items-center gap-2">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
-              {currentIdx + 1}
-            </span>
-            <span className="text-xs text-gray-500">
+        <Card className="p-5 sm:p-6">
+          <div className="mb-3 flex items-center justify-between gap-2 border-b border-gray-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
+                {currentIdx + 1}
+              </span>
+              <span className="text-sm font-semibold text-gray-900">
+                Câu hỏi
+              </span>
+              <span className="text-xs text-gray-400">
+                {currentIdx + 1} / {questions.length}
+              </span>
+            </div>
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600">
               {question.type === "single_choice"
                 ? "Trắc nghiệm"
                 : question.type === "short_answer"
@@ -334,7 +371,7 @@ export default function TakeExamPage() {
                   : "Đúng/Sai"}
             </span>
           </div>
-          <p className="text-base leading-relaxed text-gray-900">
+          <p className="text-base leading-relaxed text-gray-900 sm:text-lg sm:leading-8">
             <Latex text={question.content} />
           </p>
           {question.image_url && (
@@ -398,54 +435,133 @@ export default function TakeExamPage() {
           </div>
         </Card>
 
-        {/* Bảng điều hướng câu */}
-        <div>
+        {/* Bảng điều hướng câu (desktop) */}
+        <div className="hidden lg:block">
           <Card className="p-4">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
               Danh sách câu
             </h3>
-            <div className="grid grid-cols-6 gap-2">
-              {questions.map((q, idx) => {
-                const answered = !!answers[q.id];
-                const isCurrent = idx === currentIdx;
-                const isFlagged = flagged.includes(q.id);
-                return (
-                  <button
-                    key={q.id}
-                    onClick={() => setCurrentIdx(idx)}
-                    className={`relative flex h-9 w-full items-center justify-center rounded-lg text-xs font-bold transition-colors ${
-                      isCurrent
-                        ? "ring-2 ring-indigo-500"
-                        : answered
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-gray-100 text-gray-500"
-                    }`}
-                  >
-                    {idx + 1}
-                    {isFlagged && (
-                      <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-4 space-y-1.5 text-xs text-gray-600">
-              <p className="flex items-center gap-2">
-                <span className="inline-block h-3 w-3 rounded bg-emerald-100" />
-                Đã trả lời
-              </p>
-              <p className="flex items-center gap-2">
-                <span className="inline-block h-3 w-3 rounded bg-gray-100" />
-                Chưa trả lời
-              </p>
-              <p className="flex items-center gap-2">
-                <span className="inline-block h-3 w-3 rounded-full bg-amber-500" />
-                Đánh dấu xem lại
-              </p>
-            </div>
+            <QuestionGrid
+              questions={questions}
+              answers={answers}
+              flagged={flagged}
+              currentIdx={currentIdx}
+              onSelect={setCurrentIdx}
+            />
+            <Legend />
           </Card>
         </div>
       </div>
+
+      {/* Mobile: nút mở danh sách câu */}
+      <button
+        type="button"
+        onClick={() => setNavOpen(true)}
+        className="safe-b fixed inset-x-4 bottom-4 z-30 flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/30 active:scale-95 md:hidden"
+      >
+        <span>🧭</span>
+        Danh sách câu
+        <span className="rounded-md bg-white/20 px-2 py-0.5 text-xs tabular-nums">
+          {answeredCount}/{questions.length}
+        </span>
+      </button>
+
+      {/* Mobile: bottom sheet */}
+      {navOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setNavOpen(false)}
+          />
+          <div className="safe-b absolute inset-x-0 bottom-0 max-h-[75vh] overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300" />
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-gray-900">
+                Danh sách câu
+              </h3>
+              <span className="text-xs text-gray-500">
+                {answeredCount}/{questions.length} đã làm
+              </span>
+            </div>
+            <QuestionGrid
+              questions={questions}
+              answers={answers}
+              flagged={flagged}
+              currentIdx={currentIdx}
+              onSelect={goToQuestion}
+            />
+            <Legend />
+            <button
+              type="button"
+              onClick={() => setNavOpen(false)}
+              className="mt-4 w-full rounded-xl border border-gray-300 py-2.5 text-sm font-semibold text-gray-700"
+            >
+              Tiếp tục làm bài
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuestionGrid({
+  questions,
+  answers,
+  flagged,
+  currentIdx,
+  onSelect,
+}: {
+  questions: NonNullable<Exam["examQuestions"]>[number]["question"][];
+  answers: AnswerState;
+  flagged: string[];
+  currentIdx: number;
+  onSelect: (idx: number) => void;
+}) {
+  return (
+    <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-6">
+      {questions.map((q, idx) => {
+        const answered = !!answers[q.id];
+        const isCurrent = idx === currentIdx;
+        const isFlagged = flagged.includes(q.id);
+        return (
+          <button
+            key={q.id}
+            onClick={() => onSelect(idx)}
+            className={`relative flex h-10 w-full items-center justify-center rounded-lg text-xs font-bold transition-colors ${
+              isCurrent
+                ? "ring-2 ring-indigo-500"
+                : answered
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-gray-100 text-gray-500"
+            }`}
+          >
+            {idx + 1}
+            {isFlagged && (
+              <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Legend() {
+  return (
+    <div className="mt-4 space-y-1.5 text-xs text-gray-600">
+      <p className="flex items-center gap-2">
+        <span className="inline-block h-3 w-3 rounded bg-emerald-100" />
+        Đã trả lời
+      </p>
+      <p className="flex items-center gap-2">
+        <span className="inline-block h-3 w-3 rounded bg-gray-100" />
+        Chưa trả lời
+      </p>
+      <p className="flex items-center gap-2">
+        <span className="inline-block h-3 w-3 rounded-full bg-amber-500" />
+        Đánh dấu xem lại
+      </p>
     </div>
   );
 }

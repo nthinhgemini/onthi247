@@ -3,12 +3,12 @@ import type { Difficulty, QuestionType } from "@/lib/types";
 
 const btnStyles: Record<string, string> = {
   primary:
-    "bg-indigo-600 text-white hover:bg-indigo-700 focus-visible:outline-indigo-600",
+    "bg-indigo-600 text-white shadow-sm shadow-indigo-600/25 hover:bg-indigo-500 focus-visible:outline-indigo-600",
   secondary:
-    "bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50",
-  danger: "bg-red-600 text-white hover:bg-red-700",
-  success: "bg-emerald-600 text-white hover:bg-emerald-700",
-  ghost: "text-gray-700 hover:bg-gray-100",
+    "bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 hover:ring-gray-400",
+  danger: "bg-red-600 text-white shadow-sm shadow-red-600/25 hover:bg-red-500",
+  success: "bg-emerald-600 text-white shadow-sm shadow-emerald-600/25 hover:bg-emerald-500",
+  ghost: "text-gray-700 hover:bg-gray-100 hover:text-gray-900",
 };
 
 export function Button({
@@ -26,7 +26,7 @@ export function Button({
     <button
       {...props}
       disabled={props.disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 ${btnStyles[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-150 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50 ${btnStyles[variant]} ${className}`}
     >
       {loading && (
         <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -59,7 +59,7 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-gray-200 bg-white shadow-sm ${className}`}
+      className={`rounded-2xl border border-gray-200/80 bg-white shadow-card ${className}`}
     >
       {children}
     </div>
@@ -74,16 +74,16 @@ export function Badge({
   color?: "gray" | "green" | "blue" | "red" | "amber" | "indigo";
 }) {
   const colors: Record<string, string> = {
-    gray: "bg-gray-100 text-gray-700",
-    green: "bg-emerald-50 text-emerald-700",
-    blue: "bg-blue-50 text-blue-700",
-    red: "bg-red-50 text-red-700",
-    amber: "bg-amber-50 text-amber-700",
-    indigo: "bg-indigo-50 text-indigo-700",
+    gray: "bg-gray-100 text-gray-700 ring-gray-200",
+    green: "bg-emerald-50 text-emerald-700 ring-emerald-200/70",
+    blue: "bg-blue-50 text-blue-700 ring-blue-200/70",
+    red: "bg-red-50 text-red-700 ring-red-200/70",
+    amber: "bg-amber-50 text-amber-800 ring-amber-200/70",
+    indigo: "bg-indigo-50 text-indigo-700 ring-indigo-200/70",
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[color]}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${colors[color]}`}
     >
       {children}
     </span>
@@ -115,7 +115,10 @@ export function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
 
 export function Loading({ text = "Đang tải..." }: { text?: string }) {
   return (
-    <div className="flex items-center justify-center py-16 text-gray-500">
+    <div
+      role="status"
+      className="flex items-center justify-center py-16 text-gray-500"
+    >
       <svg className="mr-2 h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
         <circle
           className="opacity-25"
@@ -132,6 +135,66 @@ export function Loading({ text = "Đang tải..." }: { text?: string }) {
         />
       </svg>
       {text}
+    </div>
+  );
+}
+
+const RING_SIZE = 56;
+const RING_STROKE = 4.5;
+
+export function CountdownRing({
+  remainingSeconds,
+  totalSeconds,
+}: {
+  remainingSeconds: number;
+  totalSeconds: number;
+}) {
+  const radius = (RING_SIZE - RING_STROKE) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const pct = totalSeconds > 0 ? Math.min(1, remainingSeconds / totalSeconds) : 0;
+
+  const color =
+    remainingSeconds <= 300 ? "#dc2626" : remainingSeconds <= 600 ? "#d97706" : "#4f46e5";
+  const trackColor = remainingSeconds <= 600 ? "#fee2e2" : "#e5e7eb";
+
+  const mm = Math.floor(remainingSeconds / 60);
+  const ss = remainingSeconds % 60;
+  const label = `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+
+  return (
+    <div
+      role="timer"
+      aria-label={`Còn ${mm} phút ${ss} giây`}
+      className="relative flex h-14 w-14 shrink-0 items-center justify-center"
+    >
+      <svg viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} className="h-full w-full -rotate-90">
+        <circle
+          cx={RING_SIZE / 2}
+          cy={RING_SIZE / 2}
+          r={radius}
+          fill="none"
+          stroke={trackColor}
+          strokeWidth={RING_STROKE}
+        />
+        <circle
+          cx={RING_SIZE / 2}
+          cy={RING_SIZE / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={RING_STROKE}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - pct)}
+          style={{ transition: "stroke-dashoffset 1s linear, stroke 0.4s ease" }}
+        />
+      </svg>
+      <span
+        className="absolute inset-0 flex items-center justify-center font-mono text-[13px] font-bold tabular-nums"
+        style={{ color }}
+      >
+        {label}
+      </span>
     </div>
   );
 }

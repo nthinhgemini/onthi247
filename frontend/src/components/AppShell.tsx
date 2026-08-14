@@ -9,21 +9,22 @@ import type { NotificationsData } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
 
 const NAV = [
-  { href: "/", label: "Trang chủ" },
-  { href: "/exams", label: "Kho đề thi" },
-  { href: "/notes", label: "Sổ tay" },
-  { href: "/stats", label: "Thống kê" },
-  { href: "/submissions", label: "Lịch sử làm bài" },
+  { href: "/", label: "Trang chủ", icon: "🏠" },
+  { href: "/exams", label: "Đề thi", icon: "📝" },
+  { href: "/notes", label: "Sổ tay", icon: "📒" },
+  { href: "/stats", label: "Thống kê", icon: "📊" },
 ];
 
-const FORUM_NAV = [{ href: "/forum", label: "Diễn đàn" }];
+const MORE_NAV = [
+  { href: "/submissions", label: "Lịch sử làm bài" },
+  { href: "/forum", label: "Diễn đàn" },
+  { href: "/leaderboard", label: "Xếp hạng" },
+];
 
 const TEACHER_NAV = [
   { href: "/questions", label: "Ngân hàng câu hỏi" },
   { href: "/exams/new", label: "Tạo đề thi" },
 ];
-
-const RANKING_NAV = [{ href: "/leaderboard", label: "Xếp hạng" }];
 
 const ADMIN_NAV = [
   { href: "/admin", label: "Admin" },
@@ -93,7 +94,7 @@ function NotificationBell() {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-2 w-80 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+        <div className="absolute right-0 z-30 mt-2 max-w-[calc(100vw-2rem)] w-80 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg sm:fixed sm:right-4 sm:top-16">
           <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2.5">
             <p className="text-sm font-semibold text-gray-900">Thông báo</p>
             {unread > 0 && (
@@ -139,19 +140,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  const items = [
+  const desktopItems = [
     ...NAV,
-    ...FORUM_NAV,
+    { href: "/submissions", label: "Lịch sử" },
+    { href: "/forum", label: "Diễn đàn" },
     ...(user?.role === "teacher" || user?.role === "admin"
       ? TEACHER_NAV
       : []),
-    ...(user?.role === "student" ? RANKING_NAV : []),
+    ...(user?.role === "student" ? [{ href: "/leaderboard", label: "Xếp hạng" }] : []),
     ...(user?.role === "admin" ? ADMIN_NAV : []),
   ];
 
+  const moreItems = [
+    ...MORE_NAV,
+    ...(user?.role === "teacher" || user?.role === "admin"
+      ? TEACHER_NAV
+      : []),
+    ...(user?.role === "admin" ? ADMIN_NAV : []),
+  ];
+
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/80 backdrop-blur">
+    <div className="flex min-h-screen flex-col pb-16 md:pb-0">
+      <header className="safe-t sticky top-0 z-20 border-b border-gray-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <Link href="/" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">
@@ -159,8 +186,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <span className="text-lg font-bold text-gray-900">Ôn thi 2029</span>
           </Link>
-          <nav className="hidden items-center gap-1 md:flex">
-            {items.map((item) => (
+          <nav className="hidden items-center gap-1 lg:flex">
+            {desktopItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -174,13 +201,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 sm:gap-3">
             {user ? (
               <>
                 <NotificationBell />
                 <Link
                   href={`/users/${user.id}`}
-                  className="hidden text-right sm:block"
+                  className="hidden text-right lg:block"
                 >
                   <p className="text-sm font-medium text-gray-900 hover:text-indigo-600">
                     {user.full_name}
@@ -210,29 +237,62 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </div>
-        {/* Mobile nav */}
-        <nav className="flex gap-1 overflow-x-auto border-t border-gray-100 px-4 py-2 md:hidden">
-          {items.map((item) => (
+      </header>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:py-8">
+        {children}
+      </main>
+      <footer className="hidden border-t border-gray-200 py-6 text-center text-sm text-gray-500 md:block">
+        Ôn thi 2029 — Luyện thi THPT Quốc gia
+      </footer>
+
+      {/* Mobile bottom nav */}
+      <nav className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 backdrop-blur md:hidden">
+        <div className="grid grid-cols-5">
+          {NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${
+              className={`flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors ${
                 isActive(item.href)
-                  ? "bg-indigo-50 text-indigo-700"
-                  : "text-gray-600"
+                  ? "text-indigo-600"
+                  : "text-gray-500 hover:text-gray-800"
               }`}
             >
+              <span className="text-lg leading-none">{item.icon}</span>
               {item.label}
             </Link>
           ))}
-        </nav>
-      </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-        {children}
-      </main>
-      <footer className="border-t border-gray-200 py-6 text-center text-sm text-gray-500">
-        Ôn thi 2029 — Luyện thi THPT Quốc gia
-      </footer>
+          <button
+            onClick={() => setMoreOpen((v) => !v)}
+            className={`flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors ${
+              moreOpen ? "text-indigo-600" : "text-gray-500"
+            }`}
+          >
+            <span className="text-lg leading-none">⋯</span>
+            Thêm
+          </button>
+        </div>
+        {moreOpen && (
+          <div
+            ref={moreRef}
+            className="safe-b max-h-72 overflow-y-auto border-t border-gray-100 bg-white px-2 py-2"
+          >
+            {moreItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`block rounded-lg px-3 py-2.5 text-sm font-medium ${
+                  isActive(item.href)
+                    ? "bg-indigo-50 text-indigo-700"
+                    : "text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        )}
+      </nav>
     </div>
   );
 }

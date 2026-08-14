@@ -210,7 +210,7 @@ export default function NewExamPage() {
       </Card>
 
       {/* Mode selector */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         <button
           onClick={() => {
             setMode("official");
@@ -269,7 +269,7 @@ export default function NewExamPage() {
                 <button
                   key={s.code}
                   onClick={() => setSubjectId(match?.id ?? "")}
-                  className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors sm:flex-row sm:items-center ${
                     subjectId === match?.id
                       ? "border-indigo-500 bg-indigo-50"
                       : "border-gray-200 hover:border-gray-300"
@@ -277,7 +277,7 @@ export default function NewExamPage() {
                   disabled={!match}
                 >
                   <span className="font-medium text-gray-900">{s.name}</span>
-                  <span className="text-xs text-gray-500">{s.detail}</span>
+                  <span className="shrink-0 text-xs text-gray-500">{s.detail}</span>
                 </button>
               );
             })}

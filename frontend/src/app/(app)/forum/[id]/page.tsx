@@ -136,8 +136,8 @@ export default function ForumDetailPage() {
                       : "border-gray-100 bg-white"
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="font-semibold text-gray-800">
                         {c.user.full_name}
                       </span>
@@ -148,7 +148,7 @@ export default function ForumDetailPage() {
                         <Badge color="green">★ Câu trả lời hay nhất</Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {isAuthor && !isBest && (
                         <Button
                           variant="ghost"

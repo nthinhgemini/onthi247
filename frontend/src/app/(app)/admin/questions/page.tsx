@@ -78,7 +78,7 @@ export default function AdminQuestionsPage() {
         <div className="space-y-4">
           {questions.map((q) => (
             <Card key={q.id} className="p-5">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <Badge color={STATUS_COLOR[q.status]}>
@@ -107,11 +107,11 @@ export default function AdminQuestionsPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex shrink-0 flex-col gap-2">
+                <div className="flex shrink-0 gap-2 sm:flex-col sm:gap-2">
                   {q.status !== "published" && (
                     <Button
                       variant="success"
-                      className="px-3 py-1.5 text-xs"
+                      className="flex-1 px-3 py-1.5 text-xs sm:flex-none"
                       onClick={() =>
                         moderateMutation.mutate({ id: q.id, status: "published" })
                       }
@@ -126,7 +126,7 @@ export default function AdminQuestionsPage() {
                   {q.status !== "rejected" && (
                     <Button
                       variant="danger"
-                      className="px-3 py-1.5 text-xs"
+                      className="flex-1 px-3 py-1.5 text-xs sm:flex-none"
                       onClick={() =>
                         moderateMutation.mutate({ id: q.id, status: "rejected" })
                       }

@@ -84,13 +84,49 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <section>
-        <h1 className="text-2xl font-bold text-gray-900">
-          Xin chào, {user?.full_name ?? "bạn"} 👋
-        </h1>
-        <p className="mt-1 text-gray-600">
-          Hôm nay bạn muốn ôn luyện môn nào?
-        </p>
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-indigo-500 px-6 py-8 text-white shadow-lift sm:px-8">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-white/10"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-24 right-28 h-44 w-44 rounded-full bg-white/10"
+        />
+        <div className="relative">
+          <p className="text-sm font-medium text-indigo-200">
+            {user?.full_name ? `Chào ${user.full_name.split(" ").pop()}` : "Chào bạn"} 👋
+          </p>
+          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">
+            Hôm nay ôn luyện môn nào?
+          </h1>
+          <p className="mt-1.5 max-w-md text-sm text-indigo-100">
+            Giữ vững nhịp độ mỗi ngày — từng điểm số đều đáng giá.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link
+              href="/exams"
+              className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-indigo-50 active:scale-[0.98]"
+            >
+              Bắt đầu luyện đề →
+            </Link>
+            {user?.role === "teacher" || user?.role === "admin" ? (
+              <Link
+                href="/exams/new"
+                className="rounded-xl bg-white/15 px-5 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-white/30 transition-colors hover:bg-white/20"
+              >
+                + Tạo đề thi
+              </Link>
+            ) : (
+              <Link
+                href="/stats"
+                className="rounded-xl bg-white/15 px-5 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-white/30 transition-colors hover:bg-white/20"
+              >
+                Xem thống kê
+              </Link>
+            )}
+          </div>
+        </div>
       </section>
 
       <StatsStrip />
@@ -144,18 +180,18 @@ export default function DashboardPage() {
       </section>
 
       {user?.role === "teacher" || user?.role === "admin" ? (
-        <section className="flex gap-3">
-          <Link
-            href="/exams/new"
-            className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
-          >
-            + Tạo đề thi
-          </Link>
+        <section className="flex flex-wrap gap-3">
           <Link
             href="/questions"
-            className="rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            className="rounded-xl bg-white px-6 py-3 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors hover:bg-gray-50"
           >
             Ngân hàng câu hỏi
+          </Link>
+          <Link
+            href="/questions/new"
+            className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-600/25 transition-colors hover:bg-indigo-500"
+          >
+            + Thêm câu hỏi
           </Link>
         </section>
       ) : null}

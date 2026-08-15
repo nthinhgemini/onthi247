@@ -47,12 +47,16 @@ enum SubmissionStatus {
 model User {
   id               String     @id @default(cuid())
   email            String     @unique
-  password_hash    String
+  password_hash    String?
   full_name        String
   role             UserRole   @default(student)
   school           String?
   target_block     String?
   avatar_url       String?
+  google_id        String?    @unique
+  oauth_provider   String?
+  oauth_id         String?    @unique
+  token_version    Int        @default(0)
   xp               Int        @default(0)
   streak_count     Int        @default(0)
   last_activity_at DateTime?
@@ -68,6 +72,19 @@ model User {
   forumComments   ForumComment[]
   forumVotes      ForumVote[]
   notes           Note[]
+  passwordResets  PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  user_id    String
+  token_hash String    @unique
+  expires_at DateTime
+  used_at    DateTime?
+  created_at DateTime  @default(now())
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
 }
 
 model Subject {
@@ -159,6 +176,10 @@ model Submission {
   user         User             @relation(fields: [user_id], references: [id])
   exam         Exam             @relation(fields: [exam_id], references: [id])
   answers      SubmissionAnswer[]
+
+  @@index([user_id])
+  @@index([exam_id])
+  @@index([user_id, status])
 }
 
 model SubmissionAnswer {
@@ -171,6 +192,8 @@ model SubmissionAnswer {
   flagged       Boolean    @default(false)
   submission    Submission @relation(fields: [submission_id], references: [id], onDelete: Cascade)
   question      Question   @relation(fields: [question_id], references: [id], onDelete: Cascade)
+
+  @@index([submission_id])
 }
 
 model Badge {
@@ -190,6 +213,8 @@ model UserBadge {
   earned_at DateTime @default(now())
   user     User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
   badge    Badge  @relation(fields: [badge_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, badge_id])
 }
 
 model ForumPost {

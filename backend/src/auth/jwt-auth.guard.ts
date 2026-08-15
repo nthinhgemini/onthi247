@@ -7,6 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
+import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from './auth.service';
 import { IS_PUBLIC_KEY } from './decorators';
 
@@ -15,6 +16,7 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwt: JwtService,
     private readonly reflector: Reflector,
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -30,12 +32,27 @@ export class JwtAuthGuard implements CanActivate {
     if (!token) {
       throw new UnauthorizedException('Chưa đăng nhập');
     }
+    let payload: JwtPayload;
     try {
-      const payload = await this.jwt.verifyAsync<JwtPayload>(token);
-      (request as Request & { user: JwtPayload }).user = payload;
+      payload = await this.jwt.verifyAsync<JwtPayload>(token);
     } catch {
       throw new UnauthorizedException('Token không hợp lệ');
     }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, is_active: true, role: true },
+    });
+    if (!user || user.is_active === false) {
+      throw new UnauthorizedException(
+        'Tài khoản đã bị khóa hoặc không tồn tại',
+      );
+    }
+
+    (request as Request & { user: JwtPayload }).user = {
+      ...payload,
+      role: user.role,
+    };
     return true;
   }
 

@@ -2,7 +2,7 @@
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { Exam, Submission, SubmitResult } from "@/lib/types";
 import { Button, Card, CountdownRing, Loading } from "@/components/ui";
@@ -130,16 +130,53 @@ export default function TakeExamPage() {
   const router = useRouter();
   const submissionId = searchParams.get("submission");
 
-  const [answers, setAnswers] = useState<AnswerState>({});
-  const [flagged, setFlagged] = useState<string[]>([]);
+  const answersRef = useRef<AnswerState>({});
+  const flaggedRef = useRef<string[]>([]);
+  const submittedRef = useRef(false);
+
+  const [answers, setAnswers] = useState<AnswerState>(() => {
+    if (typeof window === "undefined" || !submissionId) return {};
+    try {
+      const stored = localStorage.getItem(`exam-submission-${submissionId}`);
+      if (stored) {
+        const parsed = JSON.parse(stored) as { answers?: AnswerState };
+        if (parsed.answers) return parsed.answers;
+      }
+    } catch {
+      // ignore
+    }
+    return {};
+  });
+
+  const [flagged, setFlagged] = useState<string[]>(() => {
+    if (typeof window === "undefined" || !submissionId) return [];
+    try {
+      const stored = localStorage.getItem(`exam-submission-${submissionId}`);
+      if (stored) {
+        const parsed = JSON.parse(stored) as { flagged?: string[] };
+        if (parsed.flagged) return parsed.flagged;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
+  useEffect(() => {
+    flaggedRef.current = flagged;
+  }, [flagged]);
+
+  const queryClient = useQueryClient();
   const [currentIdx, setCurrentIdx] = useState(0);
   const [navOpen, setNavOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
   const [error, setError] = useState("");
-  const answersRef = useRef<AnswerState>({});
-  const flaggedRef = useRef<string[]>([]);
-  const submittedRef = useRef(false);
 
   const examQuery = useQuery({
     queryKey: ["exam", params.id],
@@ -157,6 +194,26 @@ export default function TakeExamPage() {
     [examQuery.data]
   );
 
+  // Lưu đáp án vào localStorage ngay khi chọn đáp án
+  const persistLocal = useCallback(
+    (nextAnswers: AnswerState, nextFlags: string[]) => {
+      if (!submissionId || submittedRef.current) return;
+      try {
+        localStorage.setItem(
+          `exam-submission-${submissionId}`,
+          JSON.stringify({
+            answers: nextAnswers,
+            flagged: nextFlags,
+            updatedAt: Date.now(),
+          })
+        );
+      } catch {
+        // Ignore quota/storage error
+      }
+    },
+    [submissionId]
+  );
+
   const save = useCallback(
     async (data: AnswerState, flags: string[]) => {
       if (!submissionId || submittedRef.current) return;
@@ -168,12 +225,24 @@ export default function TakeExamPage() {
           method: "POST",
           body: { answers: payload, flagged: flags },
         });
+        setIsOffline(false);
       } catch (err) {
         console.error("Auto-save failed:", err);
+        setIsOffline(true);
       }
     },
     [submissionId]
   );
+
+  // Lắng nghe sự kiện online để retry auto-save
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      save(answersRef.current, flaggedRef.current);
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [save]);
 
   const submitNow = useCallback(async () => {
     if (submittedRef.current || !submissionId) return;
@@ -190,6 +259,19 @@ export default function TakeExamPage() {
         `/submissions/${submissionId}/submit`,
         { method: "POST", body: { answers: payload, flagged: flaggedRef.current } }
       );
+
+      // Xóa localStorage sau khi nộp bài thành công
+      try {
+        localStorage.removeItem(`exam-submission-${submissionId}`);
+      } catch {
+        // ignore
+      }
+
+      // Invalidate stale cache để leaderboard, stats, submissions cập nhật ngay
+      void queryClient.invalidateQueries({ queryKey: ["submissions"] });
+      void queryClient.invalidateQueries({ queryKey: ["stats"] });
+      void queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+
       const badges = result.earned_badges?.map((b) => b.name).join(",") ?? "";
       router.replace(
         `/submissions/${result.id}?score=${result.total_score}&xp=${result.xp_earned}&badges=${encodeURIComponent(badges)}`
@@ -199,7 +281,7 @@ export default function TakeExamPage() {
       submittedRef.current = false;
       setSubmitting(false);
     }
-  }, [submissionId, router]);
+  }, [submissionId, router, queryClient]);
 
   // Countdown: tick mỗi giây, tính thời gian còn lại từ started_at
   const deadline = useMemo(() => {
@@ -237,7 +319,7 @@ export default function TakeExamPage() {
   const setAnswer = (qid: string, v: string) => {
     const next = { ...answers, [qid]: v };
     setAnswers(next);
-    answersRef.current = next;
+    persistLocal(next, flagged);
   };
 
   const toggleFlag = (qid: string) => {
@@ -245,25 +327,11 @@ export default function TakeExamPage() {
       ? flagged.filter((id) => id !== qid)
       : [...flagged, qid];
     setFlagged(next);
-    flaggedRef.current = next;
+    persistLocal(answers, next);
     if (submissionId && !submittedRef.current) {
-      save(answersRef.current, next);
+      save(answers, next);
     }
   };
-
-  // Khôi phục trạng thái đánh dấu khi quay lại bài làm dở
-  const [serverFlags, setServerFlags] = useState<string[] | null>(null);
-  const submissionFlags = submissionQuery.data?.flagged ?? null;
-  if (submissionFlags !== null && submissionFlags !== serverFlags) {
-    setServerFlags(submissionFlags);
-    if (submissionFlags.length) {
-      setFlagged(submissionFlags);
-    }
-  }
-
-  useEffect(() => {
-    flaggedRef.current = flagged;
-  }, [flagged]);
 
   const goToQuestion = (idx: number) => {
     setCurrentIdx(idx);
@@ -341,6 +409,11 @@ export default function TakeExamPage() {
             style={{ width: `${answeredPct}%` }}
           />
         </div>
+        {isOffline && (
+          <p className="border-t border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-800">
+            ⚠️ Đang lưu ngoại tuyến (localStorage). Sẽ tự động đồng bộ khi có kết nối mạng trở lại.
+          </p>
+        )}
         {error && (
           <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">
             {error}
@@ -371,17 +444,19 @@ export default function TakeExamPage() {
                   : "Đúng/Sai"}
             </span>
           </div>
-          <p className="text-base leading-relaxed text-gray-900 sm:text-lg sm:leading-8">
-            <Latex text={question.content} />
-          </p>
-          {question.image_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={question.image_url}
-              alt="Hình minh họa"
-              className="mt-3 max-h-64 rounded-lg"
-            />
-          )}
+          <div className="max-w-full overflow-x-auto">
+            <p className="text-base leading-relaxed text-gray-900 sm:text-lg sm:leading-8">
+              <Latex text={question.content} />
+            </p>
+            {question.image_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={question.image_url}
+                alt="Hình minh họa"
+                className="mt-3 max-w-full h-auto rounded-lg"
+              />
+            )}
+          </div>
           <div className="mt-3">
             <button
               type="button"

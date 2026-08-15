@@ -163,10 +163,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMoreOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
         setMoreOpen(false);
@@ -252,6 +248,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => setMoreOpen(false)}
               className={`flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors ${
                 isActive(item.href)
                   ? "text-indigo-600"
@@ -281,6 +278,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => setMoreOpen(false)}
                 className={`block rounded-lg px-3 py-2.5 text-sm font-medium ${
                   isActive(item.href)
                     ? "bg-indigo-50 text-indigo-700"

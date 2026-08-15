@@ -113,7 +113,10 @@ export class UsersService {
     };
   }
 
-  private sanitize(user: { password_hash: string; [key: string]: unknown }) {
+  private sanitize(user: {
+    password_hash: string | null;
+    [key: string]: unknown;
+  }) {
     const { password_hash: _ignored, ...rest } = user;
     void _ignored;
     return rest;

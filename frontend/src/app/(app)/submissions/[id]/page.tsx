@@ -140,9 +140,11 @@ export default function ReviewPage() {
                 </div>
               </div>
 
-              <p className="mt-3 text-sm leading-relaxed text-gray-900">
-                <Latex text={item.question.content} />
-              </p>
+              <div className="max-w-full overflow-x-auto">
+                <p className="mt-3 text-sm leading-relaxed text-gray-900">
+                  <Latex text={item.question.content} />
+                </p>
+              </div>
 
               {item.question.type === "single_choice" && (
                 <div className="mt-3 space-y-1.5">

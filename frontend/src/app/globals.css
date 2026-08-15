@@ -3,6 +3,14 @@
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
+  --primary: #4f46e5;
+  --primary-light: #818cf8;
+  --primary-dark: #4338ca;
+  --radius: 1rem;
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.05);
+  --shadow-md: 0 4px 12px rgb(15 23 42 / 0.08);
+  --shadow-lg: 0 8px 30px rgb(15 23 42 / 0.12);
+  --shadow-xl: 0 20px 60px rgb(15 23 42 / 0.15);
 }
 
 @theme inline {
@@ -14,32 +22,46 @@
   --shadow-lift: 0 1px 2px rgb(15 23 42 / 0.05), 0 12px 28px -12px rgb(15 23 42 / 0.16);
 }
 
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 ::selection {
-  background-color: #4f46e5;
+  background-color: var(--primary);
   color: #fff;
 }
 
-/* Subtle, consistent scrollbar */
+/* Scrollbar */
 * {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
 }
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 8px;
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
-/* Respect reduced-motion preferences */
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,
@@ -50,17 +72,15 @@ body {
   }
 }
 
-/* Bottom safe area (iOS home indicator) */
+/* Safe areas */
 .safe-b {
   padding-bottom: env(safe-area-inset-bottom);
 }
-
-/* Top safe area (notch) */
 .safe-t {
   padding-top: env(safe-area-inset-top);
 }
 
-/* Hide scrollbars on the mobile question navigator */
+/* Utility */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -69,17 +89,37 @@ body {
   scrollbar-width: none;
 }
 
-/* Prevent horizontal page overflow on small screens */
 html,
 body {
   overflow-x: hidden;
 }
 
-/* iOS/Android: prevent auto-zoom when focusing form fields (needs >=16px) */
 @media (max-width: 640px) {
   input,
   select,
   textarea {
     font-size: 16px;
   }
+}
+
+/* Smooth page transitions */
+.page-enter {
+  animation: fadeInUp 0.3s ease-out forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }

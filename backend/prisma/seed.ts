@@ -12,54 +12,66 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = {
 };
 
 async function main() {
-  await prisma.$transaction([
-    prisma.userBadge.deleteMany(),
-    prisma.badge.deleteMany(),
-    prisma.notification.deleteMany(),
-    prisma.forumComment.deleteMany(),
-    prisma.forumPost.deleteMany(),
-    prisma.submissionAnswer.deleteMany(),
-    prisma.submission.deleteMany(),
-    prisma.examQuestion.deleteMany(),
-    prisma.exam.deleteMany(),
-    prisma.questionOption.deleteMany(),
-    prisma.question.deleteMany(),
-    prisma.chapter.deleteMany(),
-    prisma.subject.deleteMany(),
-    prisma.user.deleteMany(),
-  ]);
+  // ADN: seed idempotent — KHÔNG xóa dữ liệu đã có, chỉ upsert phần thiếu.
+  // Chạy lại an toàn: người dùng, câu hỏi, bài làm do người dùng tạo được giữ nguyên.
 
-  const admin = await prisma.user.create({
-    data: {
-      email: 'admin@onthi2029.vn',
-      password_hash: await bcrypt.hash('admin123', 10),
-      full_name: 'Quản trị viên',
-      role: 'admin',
-    },
+  const upsertUser = async (data: {
+    email: string;
+    password: string;
+    full_name: string;
+    role: 'admin' | 'teacher' | 'student';
+    school?: string;
+    target_block?: string;
+    xp?: number;
+    streak_count?: number;
+  }) => {
+    const password_hash = await bcrypt.hash(data.password, 10);
+    return prisma.user.upsert({
+      where: { email: data.email },
+      update: {
+        full_name: data.full_name,
+        role: data.role,
+        school: data.school,
+        target_block: data.target_block,
+      },
+      create: {
+        email: data.email,
+        password_hash,
+        full_name: data.full_name,
+        role: data.role,
+        school: data.school,
+        target_block: data.target_block,
+        xp: data.xp ?? 0,
+        streak_count: data.streak_count ?? 0,
+        last_activity_at: data.xp ? new Date() : undefined,
+      },
+    });
+  };
+
+  const admin = await upsertUser({
+    email: 'admin@onthi2029.vn',
+    password: 'admin123',
+    full_name: 'Quản trị viên',
+    role: 'admin',
   });
 
-  const teacher = await prisma.user.create({
-    data: {
-      email: 'teacher@onthi2029.vn',
-      password_hash: await bcrypt.hash('teacher123', 10),
-      full_name: 'Giáo viên Toán',
-      role: 'teacher',
-      school: 'THPT Chuyên',
-    },
+  const teacher = await upsertUser({
+    email: 'teacher@onthi2029.vn',
+    password: 'teacher123',
+    full_name: 'Giáo viên Toán',
+    role: 'teacher',
+    school: 'THPT Chuyên',
   });
 
-  const student = await prisma.user.create({
-    data: {
-      email: 'student@onthi2029.vn',
-      password_hash: await bcrypt.hash('student123', 10),
-      full_name: 'Nguyễn Văn Học Sinh',
-      role: 'student',
-      school: 'THPT Thực Nghiệm',
-      target_block: 'A00',
-      xp: 320,
-      streak_count: 3,
-      last_activity_at: new Date(),
-    },
+  const student = await upsertUser({
+    email: 'student@onthi2029.vn',
+    password: 'student123',
+    full_name: 'Nguyễn Văn Học Sinh',
+    role: 'student',
+    school: 'THPT Thực Nghiệm',
+    target_block: 'A00',
+    xp: 320,
+    streak_count: 3,
   });
 
   const subjectData: { name: string; code: string; chapters: string[] }[] = [
@@ -92,17 +104,24 @@ async function main() {
   ];
 
   for (const subj of subjectData) {
-    const subject = await prisma.subject.create({
-      data: { name: subj.name, code: subj.code },
+    const subject = await prisma.subject.upsert({
+      where: { code: subj.code },
+      update: { name: subj.name },
+      create: { name: subj.name, code: subj.code },
     });
     for (let i = 0; i < subj.chapters.length; i++) {
-      await prisma.chapter.create({
-        data: {
-          subject_id: subject.id,
-          name: subj.chapters[i],
-          order_index: i,
-        },
+      const existing = await prisma.chapter.findFirst({
+        where: { subject_id: subject.id, name: subj.chapters[i] },
       });
+      if (!existing) {
+        await prisma.chapter.create({
+          data: {
+            subject_id: subject.id,
+            name: subj.chapters[i],
+            order_index: i,
+          },
+        });
+      }
     }
   }
 
@@ -125,6 +144,16 @@ async function main() {
     const options = q.options ?? [
       { content: q.answerText as string, is_correct: true },
     ];
+    const existing = await prisma.question.findFirst({
+      where: {
+        chapter_id: chapter.id,
+        type: q.type,
+        content: q.content,
+        created_by: teacher.id,
+      },
+    });
+    if (existing) continue;
+
     await prisma.question.create({
       data: {
         chapter_id: chapter.id,
@@ -161,15 +190,22 @@ async function main() {
     { name: 'Thần đồng', description: 'Tích lũy 1000 XP', icon: '👑', condition_type: 'xp', condition_value: 1000 },
   ];
 
-  await prisma.badge.createMany({
-    data: badges.map((b) => ({
-      name: b.name,
-      description: b.description,
-      icon_url: b.icon,
-      condition_type: b.condition_type,
-      condition_value: b.condition_value,
-    })),
-  });
+  for (const b of badges) {
+    const existing = await prisma.badge.findFirst({
+      where: { name: b.name },
+    });
+    if (!existing) {
+      await prisma.badge.create({
+        data: {
+          name: b.name,
+          description: b.description,
+          icon_url: b.icon,
+          condition_type: b.condition_type,
+          condition_value: b.condition_value,
+        },
+      });
+    }
+  }
 
   console.log(
     `Seed xong: ${subjectData.length} môn, admin=${admin.email}, teacher=${teacher.email}, student=${student.email}`,

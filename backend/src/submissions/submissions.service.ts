@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -25,7 +26,7 @@ export class SubmissionsService {
     }
 
     const existing = await this.prisma.submission.findFirst({
-      where: { user_id: userId, exam_id: examId },
+      where: { user_id: userId, exam_id: examId, status: 'in_progress' },
       orderBy: { started_at: 'desc' },
     });
     if (existing) {
@@ -52,18 +53,124 @@ export class SubmissionsService {
     isSubmit = false,
   ) {
     const submission = await this.getOwned(userId, submissionId);
-    if (submission.status === 'submitted' && !isSubmit) {
+
+    if (submission.status === 'submitted') {
+      if (isSubmit) {
+        throw new ConflictException('Bài thi đã nộp trước đó');
+      }
       throw new BadRequestException('Bài thi đã nộp, không thể chỉnh sửa');
     }
 
-    const ops: Prisma.PrismaPromise<unknown>[] = [];
+    if (isSubmit) {
+      // Server-side time enforcement: tính thời gian làm bài
+      const exam = await this.prisma.exam.findUniqueOrThrow({
+        where: { id: submission.exam_id },
+        select: { duration_minutes: true },
+      });
+      const elapsedMs = Date.now() - new Date(submission.started_at).getTime();
+      const limitMs = (exam.duration_minutes + 2) * 60_000; // +2 phút grace
+      const isOvertime = elapsedMs > limitMs;
+
+      const updated = await this.prisma.submission.updateMany({
+        where: { id: submissionId, user_id: userId, status: 'in_progress' },
+        data: { status: 'submitted', submitted_at: new Date() },
+      });
+
+      if (updated.count === 0) {
+        throw new ConflictException(
+          'Bài thi đã được nộp hoặc không thể cập nhật',
+        );
+      }
+
+      const flaggedSet = new Set(dto.flagged ?? []);
+      const answerOps: Prisma.PrismaPromise<unknown>[] = [];
+
+      for (const [questionId, answers] of Object.entries(dto.answers ?? {})) {
+        const serialized = answers.map((a) => a.answer).join('|');
+        answerOps.push(
+          this.prisma.submissionAnswer.updateMany({
+            where: { submission_id: submissionId, question_id: questionId },
+            data: { answer: serialized },
+          }),
+        );
+      }
+
+      if (flaggedSet.size > 0) {
+        answerOps.push(
+          this.prisma.submissionAnswer.updateMany({
+            where: {
+              submission_id: submissionId,
+              question_id: { in: Array.from(flaggedSet) },
+            },
+            data: { flagged: true },
+          }),
+        );
+        answerOps.push(
+          this.prisma.submissionAnswer.updateMany({
+            where: {
+              submission_id: submissionId,
+              question_id: { notIn: Array.from(flaggedSet) },
+            },
+            data: { flagged: false },
+          }),
+        );
+      }
+
+      if (answerOps.length > 0) {
+        await this.prisma.$transaction(answerOps);
+      }
+
+      const graded = await this.grade(submissionId);
+
+      const gradeUpdates = graded.answers.map((g) =>
+        this.prisma.submissionAnswer.update({
+          where: { id: g.id },
+          data: { is_correct: g.is_correct, score: g.score },
+        }),
+      );
+      if (gradeUpdates.length > 0) {
+        await this.prisma.$transaction(gradeUpdates);
+      }
+
+      const correctCount = graded.answers.filter((a) => a.is_correct).length;
+      const xpEarned = this.computeXp(graded.totalScore, correctCount);
+
+      await this.prisma.submission.update({
+        where: { id: submissionId },
+        data: {
+          total_score: graded.totalScore,
+          xp_awarded: xpEarned,
+          correct_count: correctCount,
+        },
+      });
+
+      const earnedBadges = await this.awardProgress(
+        userId,
+        correctCount,
+        xpEarned,
+      );
+
+      const result = await this.getOwned(userId, submissionId);
+      return {
+        ...result,
+        xp_earned: xpEarned,
+        earned_badges: earnedBadges,
+        overtime: isOvertime,
+      };
+    }
 
     const flaggedSet = new Set(dto.flagged ?? []);
+    const ops: Prisma.PrismaPromise<unknown>[] = [];
+
     for (const [questionId, answers] of Object.entries(dto.answers ?? {})) {
       const serialized = answers.map((a) => a.answer).join('|');
       ops.push(
         this.prisma.submissionAnswer.updateMany({
-          where: { submission_id: submissionId, question_id: questionId },
+          where: {
+            submission_id: submissionId,
+            question_id: questionId,
+            submission: { status: 'in_progress' },
+          },
           data: { answer: serialized, is_correct: null },
         }),
       );
@@ -75,6 +182,7 @@ export class SubmissionsService {
           where: {
             submission_id: submissionId,
             question_id: { in: Array.from(flaggedSet) },
+            submission: { status: 'in_progress' },
           },
           data: { flagged: true },
         }),
@@ -84,52 +192,16 @@ export class SubmissionsService {
           where: {
             submission_id: submissionId,
             question_id: { notIn: Array.from(flaggedSet) },
+            submission: { status: 'in_progress' },
           },
           data: { flagged: false },
         }),
       );
     }
 
-    if (isSubmit) {
+    if (ops.length > 0) {
       await this.prisma.$transaction(ops);
-      const graded = await this.grade(submission.id);
-      ops.length = 0;
-      for (const g of graded.answers) {
-        ops.push(
-          this.prisma.submissionAnswer.update({
-            where: { id: g.id },
-            data: { is_correct: g.is_correct, score: g.score },
-          }),
-        );
-      }
-
-      const correctCount = graded.answers.filter((a) => a.is_correct).length;
-      const xpEarned = this.computeXp(graded.totalScore, correctCount);
-      const earnedBadges = await this.awardProgress(
-        userId,
-        correctCount,
-        xpEarned,
-      );
-
-      ops.push(
-        this.prisma.submission.update({
-          where: { id: submission.id },
-          data: {
-            status: 'submitted',
-            submitted_at: new Date(),
-            total_score: graded.totalScore,
-            xp_awarded: xpEarned,
-            correct_count: correctCount,
-          },
-        }),
-      );
-      await this.prisma.$transaction(ops);
-
-      const result = await this.getOwned(userId, submissionId);
-      return { ...result, xp_earned: xpEarned, earned_badges: earnedBadges };
     }
-
-    await this.prisma.$transaction(ops);
 
     return this.getOwned(userId, submissionId);
   }
@@ -180,27 +252,31 @@ export class SubmissionsService {
   }
 
   private async grade(submissionId: string) {
-    const submission = await this.prisma.submission.findUniqueOrThrow({
-      where: { id: submissionId },
-      include: {
-        answers: true,
-        exam: {
-          include: {
-            examQuestions: {
-              include: {
-                question: {
-                  include: {
-                    options: { orderBy: { order_index: 'asc' } },
+    const [submissionAnswers, submission] = await Promise.all([
+      this.prisma.submissionAnswer.findMany({
+        where: { submission_id: submissionId },
+      }),
+      this.prisma.submission.findUniqueOrThrow({
+        where: { id: submissionId },
+        include: {
+          exam: {
+            include: {
+              examQuestions: {
+                include: {
+                  question: {
+                    include: {
+                      options: { orderBy: { order_index: 'asc' } },
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
-    });
+      }),
+    ]);
 
-    const answers = new Map(submission.answers.map((a) => [a.question_id, a]));
+    const answers = new Map(submissionAnswers.map((a) => [a.question_id, a]));
 
     const graded: { id: string; is_correct: boolean; score: number }[] = [];
     let earned = 0;
@@ -242,24 +318,39 @@ export class SubmissionsService {
     userAnswer: string,
   ): number {
     if (q.type === 'single_choice') {
-      return q.options.some((o) => o.id === userAnswer && o.is_correct) ? 1 : 0;
+      const trimmed = userAnswer.trim();
+      return q.options.some((o) => o.id === trimmed && o.is_correct) ? 1 : 0;
     }
     if (q.type === 'short_answer') {
       const correctAnswers = q.options
         .filter((o) => o.is_correct)
         .map((o) => this.normalize(o.content));
-      const userParts = userAnswer.split('|').map((p) => this.normalize(p));
+      const userParts = userAnswer.split(/[|,-]/).map((p) => this.normalize(p));
       if (userParts.length !== correctAnswers.length) return 0;
       return userParts.every((part, i) => correctAnswers[i] === part) ? 1 : 0;
     }
     if (q.type === 'multi_true_false') {
       const expected = q.options.map((o) => (o.is_correct ? 'true' : 'false'));
-      const parts = userAnswer.split('|');
-      const matches = expected.filter((e, i) => e === parts[i]).length;
-      if (matches === 4) return 1;
-      if (matches === 3) return 0.5;
-      if (matches === 2) return 0.25;
-      return 0;
+      const parts = userAnswer
+        .split(/[|,-]/)
+        .map((p) => p.trim().toLowerCase());
+      const totalOptions = q.options.length;
+
+      if (totalOptions === 0) return 0;
+
+      const matches = expected.filter((e, i) => e === (parts[i] ?? '')).length;
+
+      if (totalOptions === 4) {
+        if (matches === 4) return 1;
+        if (matches === 3) return 0.5;
+        if (matches === 2) return 0.25;
+        return 0;
+      }
+
+      console.warn(
+        `[SubmissionsService] Question option count is ${totalOptions} (expected 4 for multi_true_false).`,
+      );
+      return matches / totalOptions;
     }
     return 0;
   }
@@ -360,7 +451,7 @@ export class SubmissionsService {
       }),
     ]);
     return {
-      submissions: submissions + 1,
+      submissions,
       streak,
       xp,
       bestScore: best[0]?.total_score ?? 0,

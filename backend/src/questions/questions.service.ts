@@ -83,12 +83,17 @@ export class QuestionsService {
     });
   }
 
-  async update(id: string, dto: UpdateQuestionDto, userId: string) {
+  async update(
+    id: string,
+    dto: UpdateQuestionDto,
+    userId: string,
+    role?: string,
+  ) {
     const existing = await this.prisma.question.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException('Câu hỏi không tồn tại');
     }
-    if (existing.created_by !== userId) {
+    if (existing.created_by !== userId && role !== 'admin') {
       throw new ForbiddenException('Bạn không phải người tạo câu hỏi này');
     }
 
@@ -122,12 +127,12 @@ export class QuestionsService {
     return this.getById(id);
   }
 
-  async remove(id: string, userId: string) {
+  async remove(id: string, userId: string, role?: string) {
     const existing = await this.prisma.question.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException('Câu hỏi không tồn tại');
     }
-    if (existing.created_by !== userId) {
+    if (existing.created_by !== userId && role !== 'admin') {
       throw new ForbiddenException('Bạn không phải người tạo câu hỏi này');
     }
     await this.prisma.question.delete({ where: { id } });

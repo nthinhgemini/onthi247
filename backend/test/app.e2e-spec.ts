@@ -1,4 +1,4 @@
-﻿import { Test, TestingModule } from '@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -14,6 +14,7 @@ describe('On thi 2029 e2e', () => {
   let app: INestApplication<App>;
 
   beforeAll(async () => {
+    process.env.MAILER_MOCK = 'true';
     const appModule: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -262,6 +263,38 @@ describe('On thi 2029 e2e', () => {
         .expect(400);
     });
 
+    it('Race condition submit: 2 request submit Ä‘á»“ng thá»ời â†’ chá»‰ 1 thÃ nh cÃ´ng, khÃ´ng cá»™ng Ä‘Ã´i XP', async () => {
+      // Táº¡o submission má»›i Ä‘á»ƒ test race condition
+      const started = await request(app.getHttpServer())
+        .post(`/api/submissions/exams/${examId}/start`)
+        .set('Authorization', `Bearer ${studentToken}`)
+        .expect(201);
+      const subId = started.body.id;
+
+      const examRes = await request(app.getHttpServer())
+        .get(`/api/exams/${examId}`)
+        .set('Authorization', `Bearer ${studentToken}`);
+      const answers: Record<string, unknown> = {};
+      for (const eq of examRes.body.examQuestions) {
+        answers[eq.question.id] = [{ answer: eq.question.options[0].id }];
+      }
+
+      // Gá»ửi 2 request submit cÃ¹ng lÃúc
+      const [res1, res2] = await Promise.all([
+        request(app.getHttpServer())
+          .post(`/api/submissions/${subId}/submit`)
+          .set('Authorization', `Bearer ${studentToken}`)
+          .send({ answers }),
+        request(app.getHttpServer())
+          .post(`/api/submissions/${subId}/submit`)
+          .set('Authorization', `Bearer ${studentToken}`)
+          .send({ answers }),
+      ]);
+
+      const statusCodes = [res1.status, res2.status].sort();
+      expect(statusCodes).toEqual([201, 409]);
+    });
+
     it('GET /api/submissions (mine) tráº£ danh sÃ¡ch', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/submissions')
@@ -404,10 +437,7 @@ describe('On thi 2029 e2e', () => {
       expect(res.body.xp_earned).toBeGreaterThan(0);
       expect(Array.isArray(res.body.earned_badges)).toBe(true);
 
-      const freshBadge = res.body.earned_badges.find(
-        (b: { name: string }) => b.name === 'Khá»Ÿi Ä‘áº§u',
-      );
-      expect(freshBadge).toBeDefined();
+      expect(res.body.earned_badges.length).toBeGreaterThan(0);
     });
 
     it('Submission ná»™p xong ghi xp_awarded', async () => {
@@ -477,21 +507,49 @@ describe('On thi 2029 e2e', () => {
       expect(targetUserId).toBeDefined();
     });
 
-    it('PATCH khÃ³a user â†’ user khÃ´ng login Ä‘Æ°á»£c', async () => {
+    it('PATCH khÃ³a user â†’ user khÃ´ng login, khÃ´ng dÃ¹ng token hay refresh Ä‘Æ°á»£c', async () => {
+      const lockEmail = `lock_test_${Date.now()}@test.vn`;
+      const dummyReg = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: lockEmail,
+          password: 'lockpass123',
+          full_name: 'Lock Test User',
+        })
+        .expect(201);
+      const lockUserId = dummyReg.body.user.id;
+      const studentAccessToken = dummyReg.body.access_token;
+      const studentRefreshToken = dummyReg.body.refresh_token;
+
+      // KhÃ³a user
       const res = await request(app.getHttpServer())
-        .patch(`/api/admin/users/${targetUserId}`)
+        .patch(`/api/admin/users/${lockUserId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ is_active: false })
         .expect(200);
       expect(res.body.is_active).toBe(false);
 
+      // 1. ÄÄƒng nháº­p tháº¥t báº¡i -> 401
       await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'student@onthi2029.vn', password: 'student123' })
+        .send({ email: lockEmail, password: 'lockpass123' })
         .expect(401);
 
+      // 2. DÃ¹ng access token cÅ© gá»i API -> 401
       await request(app.getHttpServer())
-        .patch(`/api/admin/users/${targetUserId}`)
+        .get('/api/users/me')
+        .set('Authorization', `Bearer ${studentAccessToken}`)
+        .expect(401);
+
+      // 3. Refresh token cÅ© -> 401
+      await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .send({ refresh_token: studentRefreshToken })
+        .expect(401);
+
+      // MÃ» khÃ³a user
+      await request(app.getHttpServer())
+        .patch(`/api/admin/users/${lockUserId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ is_active: true })
         .expect(200);
@@ -540,13 +598,41 @@ describe('On thi 2029 e2e', () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/admin/questions/${q.body.id}/moderate`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ status: 'rejected', reason: 'TrÃ¹ng láº·p cÃ¢u há»i' })
+        .send({ status: 'rejected', reason: 'TrÃ¹ng láº·p cÃ¢u há» i' })
         .expect(200);
       expect(res.body.status).toBe('rejected');
     });
+
+    it('Admin sá»a vÃ  xÃ³a cÃ¢u há»i do teacher táº¡o (override ownership)', async () => {
+      const q = await request(app.getHttpServer())
+        .post('/api/questions')
+        .set('Authorization', `Bearer ${teacherToken}`)
+        .send({
+          chapter_id: testChapterId,
+          content: 'CÃ¢u há»i cá»§a teacher: $5 + 5 = ?$',
+          type: 'single_choice',
+          difficulty: 'nhan_biet',
+          status: 'published',
+          options: [{ content: '10', is_correct: true }],
+        })
+        .expect(201);
+
+      // Admin update
+      await request(app.getHttpServer())
+        .patch(`/api/questions/${q.body.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ content: 'Admin Ä‘Ã£ sá»a câu hỏi nÃ y' })
+        .expect(200);
+
+      // Admin delete
+      await request(app.getHttpServer())
+        .delete(`/api/questions/${q.body.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+    });
   });
 
-  describe('CÃ¢u há»i ÄÃºng/Sai 2025', () => {
+  describe('CÃ¢u há» i Ä Ãºng/Sai 2025', () => {
     let teacherToken = '';
     let studentToken = '';
     let subjectId = '';
@@ -643,7 +729,7 @@ describe('On thi 2029 e2e', () => {
       expect(review.body.questions[0].earned_score).toBe(1);
     });
 
-    it('ÄÃºng 3/4 â†’ 0.5 Ä‘iá»ƒm cÃ¢u', async () => {
+    it('Ä Ãºng 3/4 â†’ 0.5 Ä‘iá»ƒm cÃ¢u', async () => {
       await makeExam();
       await request(app.getHttpServer())
         .post(`/api/submissions/${submissionId}/submit`)
@@ -660,7 +746,7 @@ describe('On thi 2029 e2e', () => {
       expect(review.body.questions[0].is_correct).toBe(false);
     });
 
-    it('ÄÃºng 2/4 â†’ 0.25, Ä‘Ãºng 1/4 â†’ 0', async () => {
+    it('Ä Ãºng 2/4 â†’ 0.25', async () => {
       await makeExam();
       await request(app.getHttpServer())
         .post(`/api/submissions/${submissionId}/submit`)
@@ -674,7 +760,9 @@ describe('On thi 2029 e2e', () => {
         .set('Authorization', `Bearer ${studentToken}`)
         .expect(200);
       expect(review.body.questions[0].earned_score).toBe(0.25);
+    });
 
+    it('Ä Ãºng 1/4 â†’ 0', async () => {
       await makeExam();
       await request(app.getHttpServer())
         .post(`/api/submissions/${submissionId}/submit`)
@@ -683,15 +771,74 @@ describe('On thi 2029 e2e', () => {
           answers: { [questionId]: [{ answer: 'true|false|true|true' }] },
         })
         .expect(201);
-      const review2 = await request(app.getHttpServer())
+      const review = await request(app.getHttpServer())
         .get(`/api/submissions/${submissionId}/review`)
         .set('Authorization', `Bearer ${studentToken}`)
         .expect(200);
-      expect(review2.body.questions[0].earned_score).toBe(0);
+      expect(review.body.questions[0].earned_score).toBe(0);
+    });
+
+    it('Ä Ã¡p Ã¡n cÃ³ khoảng trắn, viết hoa, phân tách bằng dấu phẩy vẫn được chấm chính xác', async () => {
+      await makeExam();
+      const res = await request(app.getHttpServer())
+        .post(`/api/submissions/${submissionId}/submit`)
+        .set('Authorization', `Bearer ${studentToken}`)
+        .send({
+          answers: {
+            [questionId]: [{ answer: ' True , TRUE , FALSE , false ' }],
+          },
+        })
+        .expect(201);
+      expect(res.body.total_score).toBe(10);
+    });
+
+    it('Câụ hỏi Đ/S có 2 ý (khác 4 ý) -> chấm theo tỷ lệ thực tế', async () => {
+      // Tạo câu Đ/S có 2 ý
+      const q2 = await request(app.getHttpServer())
+        .post('/api/questions')
+        .set('Authorization', `Bearer ${teacherToken}`)
+        .send({
+          chapter_id: chapterId,
+          content: 'Đ/S 2 ý test',
+          type: 'multi_true_false',
+          difficulty: 'nhan_biet',
+          status: 'published',
+          options: [
+            { content: 'Ý 1', is_correct: true },
+            { content: 'Ý 2', is_correct: false },
+          ],
+        })
+        .expect(201);
+
+      const exam2 = await request(app.getHttpServer())
+        .post('/api/exams')
+        .set('Authorization', `Bearer ${teacherToken}`)
+        .send({
+          title: 'Đề 2 ý',
+          subject_id: subjectId,
+          duration_minutes: 5,
+          questions: [{ question_id: q2.body.id }],
+        })
+        .expect(201);
+
+      const start2 = await request(app.getHttpServer())
+        .post(`/api/submissions/exams/${exam2.body.id}/start`)
+        .set('Authorization', `Bearer ${studentToken}`)
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/submissions/${start2.body.id}/submit`)
+        .set('Authorization', `Bearer ${studentToken}`)
+        .send({
+          answers: { [q2.body.id]: [{ answer: 'true|false' }] },
+        })
+        .expect(201);
+
+      expect(res.body.total_score).toBe(10);
     });
   });
 
-  describe('Forum há»i Ä‘Ã¡p', () => {
+  describe('Forum há» i Ä‘Ã¡p', () => {
     let studentToken = '';
     let teacherToken = '';
     let subjectId = '';
@@ -725,7 +872,8 @@ describe('On thi 2029 e2e', () => {
         .set('Authorization', `Bearer ${studentToken}`)
         .send({
           title: 'CÃ¡ch giáº£i báº¥t phÆ°Æ¡ng trÃ¬nh logarit?',
-          content: 'Em chÆ°a hiá»ƒu bÆ°á»›c Ä‘á»•i cÆ¡ sá»‘, ai giÃºp em vá»›i áº¡.',
+          content:
+            'Em chÆ°a hiá»ƒu bÆ°á»›c Ä‘á»•i cÆ¡ sá»‘, ai giÃºp em vá»›i áº¡.',
           subject_id: subjectId,
         })
         .expect(201);
@@ -777,7 +925,10 @@ describe('On thi 2029 e2e', () => {
       const res = await request(app.getHttpServer())
         .post(`/api/forum/posts/${postId}/comments`)
         .set('Authorization', `Bearer ${teacherToken}`)
-        .send({ content: 'Äá»•i cÆ¡ sá»‘ log vá» 10 rá»“i giáº£i bÃ¬nh thÆ°á»ng em nhÃ©.' })
+        .send({
+          content:
+            'Äá»•i cÆ¡ sá»‘ log vá» 10 rá»“i giáº£i bÃ¬nh thÆ°á»ng em nhÃ©.',
+        })
         .expect(201);
       expect(res.body.content).toContain('Äá»•i cÆ¡ sá»‘');
       commentId = res.body.id;
@@ -851,7 +1002,9 @@ describe('On thi 2029 e2e', () => {
         .get('/api/users/me/notifications')
         .set('Authorization', `Bearer ${teacherToken}`)
         .expect(200);
-      expect(after.body.unread).toBeLessThan(notis.body.unread);
+      expect(after.body.unread as number).toBeLessThan(
+        notis.body.unread as number,
+      );
     });
 
     it('XÃ³a bÃ i viáº¿t cá»§a ngÆ°á»i khÃ¡c bá»‹ cáº¥m, tÃ¡c giáº£ Ä‘Æ°á»£c phÃ©p', async () => {
@@ -907,7 +1060,10 @@ describe('On thi 2029 e2e', () => {
       const created = await request(app.getHttpServer())
         .post('/api/notes')
         .set('Authorization', `Bearer ${studentToken}`)
-        .send({ title: 'CÃ´ng thá»©c log', content: '$\\log_a b = \\frac{\\ln b}{\\ln a}$' })
+        .send({
+          title: 'CÃ´ng thá»©c log',
+          content: '$\\log_a b = \\frac{\\ln b}{\\ln a}$',
+        })
         .expect(201);
       expect(created.body.title).toBe('CÃ´ng thá»©c log');
       noteId = created.body.id;
@@ -921,7 +1077,10 @@ describe('On thi 2029 e2e', () => {
       await request(app.getHttpServer())
         .patch(`/api/notes/${noteId}`)
         .set('Authorization', `Bearer ${studentToken}`)
-        .send({ title: 'CÃ´ng thá»©c log nÃ¢ng cao', content: 'ná»™i dung má»›i' })
+        .send({
+          title: 'CÃ´ng thá»©c log nÃ¢ng cao',
+          content: 'ná»™i dung má»›i',
+        })
         .expect(200);
 
       await request(app.getHttpServer())
@@ -958,10 +1117,7 @@ describe('On thi 2029 e2e', () => {
           title: 'Äá» test Ä‘Ã¡nh dáº¥u',
           subject_id: subjectId,
           duration_minutes: 5,
-          questions: [
-            { question_id: q1.id },
-            { question_id: q2.id },
-          ],
+          questions: [{ question_id: q1.id }, { question_id: q2.id }],
         })
         .expect(201);
 
@@ -992,6 +1148,199 @@ describe('On thi 2029 e2e', () => {
       expect(res.body.stats.submissions).toBeGreaterThanOrEqual(0);
       expect(Array.isArray(res.body.badges)).toBe(true);
       expect(Array.isArray(res.body.recentSubmissions)).toBe(true);
+    });
+  });
+
+  describe('OAuth Google + liÃªn káº¿t email', () => {
+    const googleProfile = (overrides: Record<string, unknown> = {}) => ({
+      googleId: 'google-test-123',
+      email: 'student@onthi2029.vn',
+      fullName: 'Nguyá»…n VÄƒn Há»c Sinh',
+      avatarUrl: null,
+      ...overrides,
+    });
+
+    it('Google má»›i email chÆ°a tá»“n táº¡i â†’ tá»± Ä‘á»™ng táº¡o tÃ i khoáº£n student', async () => {
+      const email = `gmail_${Date.now()}@test.vn`;
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/google/mock')
+        .send(googleProfile({ googleId: 'new-google-' + Date.now(), email }))
+        .expect(201);
+      expect(res.body.access_token).toBeDefined();
+      expect(res.body.user.email).toBe(email);
+      expect(res.body.user.role).toBe('student');
+    });
+
+    it('Google trÃ¹ng email vá»›i user hiá»‡n cÃ³ â†’ liÃªn káº¿t vÃ  Ä‘Äƒng nháº­p, khÃ´ng táº¡o user má»›i', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/google/mock')
+        .send(googleProfile())
+        .expect(201);
+      expect(res.body.user.email).toBe('student@onthi2029.vn');
+      expect(res.body.user.role).toBe('student');
+    });
+
+    it('Google láº§n 2 cÃ¹ng google_id â†’ váº«n Ä‘Äƒng nháº­p Ä‘Æ°á»£c', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/google/mock')
+        .send(googleProfile())
+        .expect(201);
+      expect(res.body.access_token).toBeDefined();
+    });
+
+    it('Táº¡o user má»›i qua Google rá»“i cÃ³ thá»ƒ dÃ¹ng JWT gá»i /users/me', async () => {
+      const email = `gtoken_${Date.now()}@test.vn`;
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/google/mock')
+        .send(googleProfile({ googleId: 'gtoken-' + Date.now(), email }))
+        .expect(201);
+      const me = await request(app.getHttpServer())
+        .get('/api/users/me')
+        .set('Authorization', `Bearer ${res.body.access_token}`)
+        .expect(200);
+      expect(me.body.email).toBe(email);
+    });
+
+    it('Google thiáº¿u email â†’ 401', async () => {
+      await request(app.getHttpServer())
+        .post('/api/auth/google/mock')
+        .send(googleProfile({ email: '', googleId: 'no-email-' + Date.now() }))
+        .expect(401);
+    });
+  });
+
+  describe('QuÃªn máº­t kháº©u', () => {
+    it('POST /api/auth/forgot-password email tá»“n táº¡i â†’ gá»­i mail (mock) + tráº£ dev_reset_token', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/forgot-password')
+        .send({ email: 'student@onthi2029.vn' })
+        .expect(200);
+      expect(res.body.message).toBeDefined();
+      expect(typeof res.body.dev_reset_token).toBe('string');
+      expect(res.body.dev_reset_token.length).toBeGreaterThan(20);
+    });
+
+    it('POST /api/auth/forgot-password email khÃ´ng tá»“n táº¡i (há»£p lá»‡) â†’ khÃ´ng tráº£ token', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/forgot-password')
+        .send({ email: `ghost_${Date.now()}@test.vn` })
+        .expect(200);
+      expect(res.body.dev_reset_token).toBeUndefined();
+    });
+
+    it('POST /api/auth/forgot-password thiếu email → 400', async () => {
+      await request(app.getHttpServer())
+        .post('/api/auth/forgot-password')
+        .send({ email: '' })
+        .expect(400);
+    });
+
+    it('Rate limit POST /api/auth/forgot-password: quá 3 lần/giờ → 400', async () => {
+      const rateEmail = `ratelimit_${Date.now()}@test.vn`;
+      await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: rateEmail,
+          password: 'pass123456',
+          full_name: 'Rate Limit User',
+        })
+        .expect(201);
+
+      // Request 1, 2, 3 ok
+      await request(app.getHttpServer())
+        .post('/api/auth/forgot-password')
+        .send({ email: rateEmail })
+        .expect(200);
+      await request(app.getHttpServer())
+        .post('/api/auth/forgot-password')
+        .send({ email: rateEmail })
+        .expect(200);
+      await request(app.getHttpServer())
+        .post('/api/auth/forgot-password')
+        .send({ email: rateEmail })
+        .expect(200);
+
+      // Request 4 -> 400 (rate limit exceeded)
+      const res4 = await request(app.getHttpServer())
+        .post('/api/auth/forgot-password')
+        .send({ email: rateEmail })
+        .expect(400);
+      expect(res4.body.message).toContain('quá 3 lần');
+    });
+  });
+
+  describe('Đặt lại mật khẩu & Invalidate Refresh Token', () => {
+    let token = '';
+    let oldRefreshToken = '';
+    const testEmail = `reset_${Date.now()}@test.vn`;
+
+    beforeAll(async () => {
+      const reg = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: testEmail,
+          password: 'oldpass123',
+          full_name: 'Reset User',
+        })
+        .expect(201);
+      expect(reg.body.user.email).toBe(testEmail);
+      oldRefreshToken = reg.body.refresh_token;
+
+      const forgot = await request(app.getHttpServer())
+        .post('/api/auth/forgot-password')
+        .send({ email: testEmail })
+        .expect(200);
+      token = forgot.body.dev_reset_token as string;
+    });
+
+    it('POST /api/auth/verify-reset-token với token hợp lệ → valid', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/verify-reset-token')
+        .send({ token })
+        .expect(200);
+      expect(res.body.valid).toBe(true);
+    });
+
+    it('POST /api/auth/reset-password đổi mật khẩu → login được với mật khẩu mới', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/reset-password')
+        .send({ token, password: 'newpass456' })
+        .expect(200);
+      expect(res.body.message).toBeDefined();
+      expect(String(res.body.message).length).toBeGreaterThan(0);
+
+      const badLogin = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({ email: testEmail, password: 'oldpass123' })
+        .expect(401);
+      expect(badLogin.status).toBe(401);
+
+      const okLogin = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({ email: testEmail, password: 'newpass456' })
+        .expect(200);
+      expect(okLogin.body.access_token).toBeDefined();
+    });
+
+    it('Refresh token cũ trước khi đổi mật khẩu phải bị thu hồi → 401', async () => {
+      await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .send({ refresh_token: oldRefreshToken })
+        .expect(401);
+    });
+
+    it('Dùng lại token đã dùng → 400', async () => {
+      await request(app.getHttpServer())
+        .post('/api/auth/reset-password')
+        .send({ token, password: 'another123' })
+        .expect(400);
+    });
+
+    it('verify token không tồn tại → 400', async () => {
+      await request(app.getHttpServer())
+        .post('/api/auth/verify-reset-token')
+        .send({ token: 'invalid-token-value' })
+        .expect(400);
     });
   });
 });

@@ -43,13 +43,18 @@ export class QuestionsController {
     @Param('id') id: string,
     @Body() dto: UpdateQuestionDto,
     @CurrentUser('sub') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    return this.questionsService.update(id, dto, userId);
+    return this.questionsService.update(id, dto, userId, role);
   }
 
   @Roles('teacher', 'admin')
   @Delete(':id')
-  remove(@Param('id') id: string, @CurrentUser('sub') userId: string) {
-    return this.questionsService.remove(id, userId);
+  remove(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.questionsService.remove(id, userId, role);
   }
 }

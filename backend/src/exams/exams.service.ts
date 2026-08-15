@@ -37,7 +37,10 @@ const DIFFICULTIES = [
  */
 const OFFICIAL_2029: Record<
   string,
-  { duration_minutes: number; parts: { type: string; count: number; weight: number }[] }
+  {
+    duration_minutes: number;
+    parts: { type: string; count: number; weight: number }[];
+  }
 > = {
   // Toán: 90 phút, 22 câu: Phần I 12 câu x0.25 + Phần II 4 câu x1.0 + Phần III 6 câu x0.5 = 10đ
   toan: {
